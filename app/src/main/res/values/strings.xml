@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">KernelPerf</string>
+    <string name="accessibility_service_label">KernelPerf App Detector</string>
+    <string name="accessibility_service_desc">Mendeteksi app yang sedang berjalan untuk menerapkan profil kernel otomatis</string>
+</resources>

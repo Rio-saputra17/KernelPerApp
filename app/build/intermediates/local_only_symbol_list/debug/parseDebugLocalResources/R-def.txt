@@ -1,0 +1,7 @@
+R_DEF: Internal format may change without notice
+local
+string accessibility_service_desc
+string accessibility_service_label
+string app_name
+style Theme.KernelPerApp
+xml accessibility_service_config

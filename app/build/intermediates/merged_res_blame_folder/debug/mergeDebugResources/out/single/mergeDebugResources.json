@@ -1,0 +1,6 @@
+[
+    {
+        "merged": "com.riodev.kernelperf.app-debug-50:/xml_accessibility_service_config.xml.flat",
+        "source": "com.riodev.kernelperf.app-main-52:/xml/accessibility_service_config.xml"
+    }
+]
