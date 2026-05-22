@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
+import androidx.compose.ui.unit.dp
 import com.riodev.kernelperf.ui.MainViewModel
 import com.riodev.kernelperf.ui.screens.*
 import com.riodev.kernelperf.ui.theme.*
