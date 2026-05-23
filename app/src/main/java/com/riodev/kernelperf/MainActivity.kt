@@ -6,7 +6,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -25,7 +24,6 @@ import java.net.URLDecoder
 import java.net.URLEncoder
 
 class MainActivity : ComponentActivity() {
-
     private val viewModel: MainViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -45,30 +43,21 @@ fun KernelPerfApp(viewModel: MainViewModel) {
     val currentRoute = navBackStackEntry?.destination?.route
     val showBottomBar = currentRoute in listOf("home", "apps")
 
+    // Animasi ringan - hanya fade
+    val enterAnim = fadeIn(tween(180))
+    val exitAnim = fadeOut(tween(120))
+
     Scaffold(
         containerColor = DarkBg,
         bottomBar = {
-            AnimatedVisibility(
-                visible = showBottomBar,
-                enter = slideInVertically(
-                    initialOffsetY = { it },
-                    animationSpec = tween(300, easing = EaseOutCubic)
-                ),
-                exit = slideOutVertically(
-                    targetOffsetY = { it },
-                    animationSpec = tween(200, easing = EaseInCubic)
-                )
-            ) {
-                BottomNavBar(
-                    currentRoute = currentRoute,
-                    onNavigate = { route ->
-                        navController.navigate(route) {
-                            popUpTo("home") { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
+            if (showBottomBar) {
+                BottomNavBar(currentRoute = currentRoute, onNavigate = { route ->
+                    navController.navigate(route) {
+                        popUpTo("home") { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
                     }
-                )
+                })
             }
         }
     ) { padding ->
@@ -76,64 +65,29 @@ fun KernelPerfApp(viewModel: MainViewModel) {
             navController = navController,
             startDestination = "home",
             modifier = Modifier.padding(padding),
-            enterTransition = {
-                slideInHorizontally(
-                    initialOffsetX = { it },
-                    animationSpec = tween(320, easing = EaseOutCubic)
-                ) + fadeIn(tween(320))
-            },
-            exitTransition = {
-                slideOutHorizontally(
-                    targetOffsetX = { -it / 3 },
-                    animationSpec = tween(320, easing = EaseInCubic)
-                ) + fadeOut(tween(200))
-            },
-            popEnterTransition = {
-                slideInHorizontally(
-                    initialOffsetX = { -it / 3 },
-                    animationSpec = tween(320, easing = EaseOutCubic)
-                ) + fadeIn(tween(320))
-            },
-            popExitTransition = {
-                slideOutHorizontally(
-                    targetOffsetX = { it },
-                    animationSpec = tween(320, easing = EaseInCubic)
-                ) + fadeOut(tween(200))
-            }
+            enterTransition = { enterAnim },
+            exitTransition = { exitAnim },
+            popEnterTransition = { enterAnim },
+            popExitTransition = { exitAnim }
         ) {
             composable("home") { HomeScreen(viewModel) }
-
             composable("apps") {
-                AppListScreen(
-                    viewModel = viewModel,
-                    onAppSelected = { packageName ->
-                        val encoded = URLEncoder.encode(packageName, "UTF-8")
-                        navController.navigate("profile/$encoded")
-                    }
-                )
+                AppListScreen(viewModel = viewModel, onAppSelected = { pkg ->
+                    navController.navigate("profile/${URLEncoder.encode(pkg, "UTF-8")}")
+                })
             }
-
             composable(
                 route = "profile/{packageName}",
                 arguments = listOf(navArgument("packageName") { type = NavType.StringType })
-            ) { backStackEntry ->
-                val encoded = backStackEntry.arguments?.getString("packageName") ?: return@composable
-                val packageName = URLDecoder.decode(encoded, "UTF-8")
-                ProfileEditorScreen(
-                    packageName = packageName,
-                    viewModel = viewModel,
-                    onBack = { navController.popBackStack() }
-                )
+            ) { back ->
+                val pkg = URLDecoder.decode(back.arguments?.getString("packageName") ?: "", "UTF-8")
+                ProfileEditorScreen(packageName = pkg, viewModel = viewModel, onBack = { navController.popBackStack() })
             }
         }
     }
 }
 
-data class BottomNavItem(
-    val route: String,
-    val icon: ImageVector,
-    val label: String
-)
+data class BottomNavItem(val route: String, val icon: ImageVector, val label: String)
 
 @Composable
 fun BottomNavBar(currentRoute: String?, onNavigate: (String) -> Unit) {
@@ -141,40 +95,14 @@ fun BottomNavBar(currentRoute: String?, onNavigate: (String) -> Unit) {
         BottomNavItem("home", Icons.Default.Dashboard, "Dashboard"),
         BottomNavItem("apps", Icons.Default.Apps, "Aplikasi")
     )
-
-    NavigationBar(
-        containerColor = DarkSurface,
-        tonalElevation = 0.dp
-    ) {
+    NavigationBar(containerColor = DarkSurface, tonalElevation = 0.dp) {
         items.forEach { item ->
             val isSelected = currentRoute == item.route
             NavigationBarItem(
                 selected = isSelected,
                 onClick = { onNavigate(item.route) },
-                icon = {
-                    val scale by animateFloatAsState(
-                        targetValue = if (isSelected) 1.1f else 1f,
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                            stiffness = Spring.StiffnessLow
-                        ),
-                        label = "icon_scale"
-                    )
-                    Icon(
-                        item.icon,
-                        contentDescription = item.label,
-                        modifier = Modifier.size((24 * scale).dp)
-                    )
-                },
-                label = {
-                    AnimatedContent(
-                        targetState = isSelected,
-                        transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(150)) },
-                        label = "label"
-                    ) { selected ->
-                        Text(item.label, style = if (selected) MaterialTheme.typography.labelMedium else MaterialTheme.typography.labelSmall)
-                    }
-                },
+                icon = { Icon(item.icon, contentDescription = item.label) },
+                label = { Text(item.label) },
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = Cyan400,
                     selectedTextColor = Cyan400,
