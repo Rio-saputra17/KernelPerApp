@@ -4,6 +4,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -12,10 +14,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
-import androidx.compose.ui.unit.dp
 import com.riodev.kernelperf.ui.MainViewModel
 import com.riodev.kernelperf.ui.screens.*
 import com.riodev.kernelperf.ui.theme.*
@@ -41,13 +43,22 @@ fun KernelPerfApp(viewModel: MainViewModel) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-
     val showBottomBar = currentRoute in listOf("home", "apps")
 
     Scaffold(
         containerColor = DarkBg,
         bottomBar = {
-            if (showBottomBar) {
+            AnimatedVisibility(
+                visible = showBottomBar,
+                enter = slideInVertically(
+                    initialOffsetY = { it },
+                    animationSpec = tween(300, easing = EaseOutCubic)
+                ),
+                exit = slideOutVertically(
+                    targetOffsetY = { it },
+                    animationSpec = tween(200, easing = EaseInCubic)
+                )
+            ) {
                 BottomNavBar(
                     currentRoute = currentRoute,
                     onNavigate = { route ->
@@ -64,11 +75,33 @@ fun KernelPerfApp(viewModel: MainViewModel) {
         NavHost(
             navController = navController,
             startDestination = "home",
-            modifier = Modifier.padding(padding)
-        ) {
-            composable("home") {
-                HomeScreen(viewModel)
+            modifier = Modifier.padding(padding),
+            enterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(320, easing = EaseOutCubic)
+                ) + fadeIn(tween(320))
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { -it / 3 },
+                    animationSpec = tween(320, easing = EaseInCubic)
+                ) + fadeOut(tween(200))
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { -it / 3 },
+                    animationSpec = tween(320, easing = EaseOutCubic)
+                ) + fadeIn(tween(320))
+            },
+            popExitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(320, easing = EaseInCubic)
+                ) + fadeOut(tween(200))
             }
+        ) {
+            composable("home") { HomeScreen(viewModel) }
 
             composable("apps") {
                 AppListScreen(
@@ -119,12 +152,29 @@ fun BottomNavBar(currentRoute: String?, onNavigate: (String) -> Unit) {
                 selected = isSelected,
                 onClick = { onNavigate(item.route) },
                 icon = {
+                    val scale by animateFloatAsState(
+                        targetValue = if (isSelected) 1.1f else 1f,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                            stiffness = Spring.StiffnessLow
+                        ),
+                        label = "icon_scale"
+                    )
                     Icon(
                         item.icon,
-                        contentDescription = item.label
+                        contentDescription = item.label,
+                        modifier = Modifier.size((24 * scale).dp)
                     )
                 },
-                label = { Text(item.label) },
+                label = {
+                    AnimatedContent(
+                        targetState = isSelected,
+                        transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(150)) },
+                        label = "label"
+                    ) { selected ->
+                        Text(item.label, style = if (selected) MaterialTheme.typography.labelMedium else MaterialTheme.typography.labelSmall)
+                    }
+                },
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = Cyan400,
                     selectedTextColor = Cyan400,

@@ -1,60 +1,83 @@
 package com.riodev.kernelperf.service
 
-import android.accessibilityservice.AccessibilityService
-import android.accessibilityservice.AccessibilityServiceInfo
+import android.app.Service
 import android.content.Intent
-import android.view.accessibility.AccessibilityEvent
+import android.os.IBinder
 import com.riodev.kernelperf.data.repository.AppRepository
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
+import com.topjohnwu.superuser.Shell
+import kotlinx.coroutines.*
 
-class AppDetectionService : AccessibilityService() {
+class AppDetectionService : Service() {
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private lateinit var repository: AppRepository
-    private var lastPackage: String = ""
+    private var lastPackage = ""
+    private var monitorJob: Job? = null
 
     companion object {
         var isRunning = false
         var currentForegroundApp: String = ""
     }
 
-    override fun onServiceConnected() {
-        super.onServiceConnected()
+    override fun onCreate() {
+        super.onCreate()
         repository = AppRepository(applicationContext)
         isRunning = true
+        startMonitoring()
+    }
 
-        serviceInfo = serviceInfo.apply {
-            eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
-            feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
-            notificationTimeout = 100
+    private fun startMonitoring() {
+        monitorJob = scope.launch {
+            while (isActive) {
+                try {
+                    val pkg = getForegroundApp()
+                    if (pkg.isNotBlank() && pkg != lastPackage &&
+                        pkg != "com.riodev.kernelperf" &&
+                        pkg != "com.android.systemui") {
+                        lastPackage = pkg
+                        currentForegroundApp = pkg
+                        repository.applyProfile(pkg)
+                    }
+                } catch (e: Exception) {
+                    // ignore
+                }
+                delay(1000)
+            }
         }
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
-
-        val packageName = event.packageName?.toString() ?: return
-
-        // Skip system UI dan app kita sendiri
-        if (packageName == "com.riodev.kernelperf" ||
-            packageName == "com.android.systemui" ||
-            packageName == lastPackage) return
-
-        lastPackage = packageName
-        currentForegroundApp = packageName
-
-        scope.launch {
-            repository.applyProfile(packageName)
+    private fun getForegroundApp(): String {
+        // Method 1: dumpsys activity via root (paling reliable)
+        val result = Shell.cmd(
+            "dumpsys activity activities 2>/dev/null | grep mResumedActivity | head -1 | grep -oP '(?<= )[a-z][a-z0-9.]+(?=/)'"
+        ).exec()
+        if (result.isSuccess && result.out.isNotEmpty()) {
+            val pkg = result.out.first().trim()
+            if (pkg.contains(".")) return pkg
         }
+
+        // Method 2: dumpsys window (fallback)
+        val result2 = Shell.cmd(
+            "dumpsys window windows 2>/dev/null | grep -E 'mCurrentFocus|mFocusedApp' | head -1 | grep -oP '(?<= )[a-z][a-z0-9.]+(?=/)'"
+        ).exec()
+        if (result2.isSuccess && result2.out.isNotEmpty()) {
+            val pkg = result2.out.first().trim()
+            if (pkg.contains(".")) return pkg
+        }
+
+        return ""
     }
 
-    override fun onInterrupt() {}
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        return START_STICKY
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
         super.onDestroy()
         isRunning = false
+        monitorJob?.cancel()
+        scope.cancel()
     }
 }
