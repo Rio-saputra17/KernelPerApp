@@ -1,0 +1,5 @@
+-keep class com.topjohnwu.superuser.** { *; }
+-dontwarn com.topjohnwu.superuser.**
+-keep class * extends androidx.room.RoomDatabase
+-keep @androidx.room.Entity class *
+-keep class com.riodev.kernelperf.data.model.** { *; }
