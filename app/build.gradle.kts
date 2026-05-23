@@ -43,4 +43,5 @@ dependencies {
     implementation("com.github.topjohnwu.libsu:core:5.2.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
     implementation("androidx.core:core-ktx:1.13.1")
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
 }
