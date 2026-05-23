@@ -12,36 +12,6 @@ App ringan pengganti fitur per-app FKM, fokus pada:
 
 ---
 
-## Cara Build di Termux (Android)
-
-### 1. Install dependencies
-```bash
-pkg update && pkg upgrade -y
-pkg install openjdk-17 git -y
-```
-
-### 2. Install SDK (pakai sdkmanager via Termux)
-```bash
-pkg install android-tools
-# Download command line tools dari dl.google.com/android/repository/commandlinetools
-# atau gunakan AIDE/Acode + Termux Build Plugin
-```
-
-### Alternatif termudah: Build via PC
-1. Clone / copy folder ini ke PC
-2. Buka di **Android Studio**
-3. Build → Generate Signed APK
-
-### Atau: Build di Termux langsung
-```bash
-cd KernelPerApp
-chmod +x gradlew
-./gradlew assembleDebug
-# APK: app/build/outputs/apk/debug/app-debug.apk
-```
-
----
-
 ## Permissions yang dibutuhkan
 - **QUERY_ALL_PACKAGES** — baca list app terinstall
 - **PACKAGE_USAGE_STATS** — (opsional, alternatif AccessibilityService)
