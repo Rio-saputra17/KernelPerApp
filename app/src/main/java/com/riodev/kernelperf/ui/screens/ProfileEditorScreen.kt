@@ -431,41 +431,6 @@ fun DropdownSetting(
 @Composable
 fun FrequencyDropdown(
     label: String,
-    value: Int,
-    frequencies: List<Int>,
-    onSelect: (Int) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val displayValue = if (value == 0) "Default" else if (value == 0) "Default" else { val k = value.toLong(); if (k >= 1_000_000) String.format("%.1f GHz", k/1_000_000.0) else String.format("%d MHz", k/1000) }
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(label, fontSize = 13.sp, color = TextPrimary)
-
-        Box {
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(DarkCardElevated)
-                    .clickable { expanded = true }
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Text(displayValue, fontSize = 12.sp, color = Cyan400)
-                Icon(Icons.Default.ArrowDropDown, null, tint = Cyan400, modifier = Modifier.size(16.dp))
-
-@Composable
-fun FrequencyDropdown(
-    label: String,
-    value: Int,
-    frequencies: List<Int>,
-    onSelect: (Int) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
     val displayValue = if (value == 0) "Default" else {
         val k = value.toLong()
         if (k >= 1_000_000) String.format("%.1f GHz", k / 1_000_000.0)
