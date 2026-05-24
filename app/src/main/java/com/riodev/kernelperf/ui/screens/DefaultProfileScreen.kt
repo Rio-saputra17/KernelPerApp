@@ -1,25 +1,18 @@
 package com.riodev.kernelperf.ui.screens
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import com.riodev.kernelperf.root.RootUtils
 import com.riodev.kernelperf.ui.MainViewModel
 import com.riodev.kernelperf.ui.theme.*
@@ -28,97 +21,96 @@ import kotlinx.coroutines.launch
 @Composable
 fun DefaultProfileScreen(viewModel: MainViewModel) {
     val scope = rememberCoroutineScope()
-    val governors by viewModel.governors.collectAsState()
-    val bigGovernors by viewModel.bigGovernors.collectAsState()
-    val frequencies by viewModel.frequencies.collectAsState()
-    val bigFrequencies by viewModel.bigFrequencies.collectAsState()
-    val schedulers by viewModel.schedulers.collectAsState()
-    val gpuGovernors by viewModel.gpuGovernors.collectAsState()
-    val dp by viewModel.defaultProfile.collectAsState()
+    val defaultProfile by viewModel.defaultProfile.collectAsState()
+    val kernelStatus by viewModel.kernelStatus.collectAsState()
 
-    var littleGov by remember(dp.cpuGovernor) { mutableStateOf(dp.cpuGovernor) }
-    var bigGov by remember(dp.cpuGovernor) { mutableStateOf(dp.cpuGovernor) }
-    var littleMin by remember(dp.cpuMinFreq) { mutableStateOf(dp.cpuMinFreq) }
-    var littleMax by remember(dp.cpuMaxFreq) { mutableStateOf(dp.cpuMaxFreq) }
-    var bigMin by remember(dp.cpuMinFreq) { mutableStateOf(dp.cpuMinFreq) }
-    var bigMax by remember(dp.cpuMaxFreq) { mutableStateOf(dp.cpuMaxFreq) }
-    var gpuGov by remember(dp.gpuGovernor) { mutableStateOf(dp.gpuGovernor) }
-    var ioSched by remember(dp.ioScheduler) { mutableStateOf(dp.ioScheduler) }
-    var thermal by remember(dp.thermalProfile) { mutableStateOf(dp.thermalProfile) }
+    var littleGov by remember(defaultProfile) { mutableStateOf(defaultProfile.cpuGovernor) }
+    var littleMin by remember(defaultProfile) { mutableStateOf(defaultProfile.cpuMinFreq) }
+    var littleMax by remember(defaultProfile) { mutableStateOf(defaultProfile.cpuMaxFreq) }
+    var gpuGov by remember(defaultProfile) { mutableStateOf(defaultProfile.gpuGovernor) }
+    var ioSched by remember(defaultProfile) { mutableStateOf(defaultProfile.ioScheduler) }
+    var thermal by remember(defaultProfile) { mutableStateOf(defaultProfile.thermalProfile) }
 
     var isBusy by remember { mutableStateOf(false) }
     var showDone by remember { mutableStateOf(false) }
     var doneMsg by remember { mutableStateOf("") }
 
+    val littleGovernors = remember { RootUtils.readFile("/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors").split(" ").filter { it.isNotBlank() } }
+    val bigGovernors = remember { RootUtils.readFile("/sys/devices/system/cpu/cpu4/cpufreq/scaling_available_governors").split(" ").filter { it.isNotBlank() } }
+    val gpuGovernors = remember { RootUtils.readFile("/sys/class/kgsl/kgsl-3d0/devfreq/available_governors").split(" ").filter { it.isNotBlank() } }
+    val schedulers = remember { RootUtils.readFile("/sys/block/sda/queue/scheduler").replace(Regex("[\\[\\]]"), "").split(" ").filter { it.isNotBlank() } }
+    val littleFrequencies = remember { RootUtils.readFile("/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_frequencies").split(" ").filter { it.isNotBlank() }.mapNotNull { it.trim().toIntOrNull() } }
+    val bigFrequencies = remember { RootUtils.readFile("/sys/devices/system/cpu/cpu4/cpufreq/scaling_available_frequencies").split(" ").filter { it.isNotBlank() }.mapNotNull { it.trim().toIntOrNull() } }
+
     if (showDone) {
-        Dialog(onDismissRequest = { showDone = false }) {
-            Column(
-                modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(DarkCard).padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Icon(Icons.Default.CheckCircle, null, tint = GreenAccent, modifier = Modifier.size(48.dp))
-                Text(doneMsg, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                Text("Setting berhasil diterapkan", fontSize = 13.sp, color = TextSecondary)
-                Button(
-                    onClick = { showDone = false },
-                    colors = ButtonDefaults.buttonColors(containerColor = Cyan400),
-                    shape = RoundedCornerShape(10.dp)
-                ) { Text("OK", color = DarkBg, fontWeight = FontWeight.Bold) }
-            }
+        LaunchedEffect(showDone) {
+            kotlinx.coroutines.delay(2000)
+            showDone = false
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(DarkBg)) {
-        Column(modifier = Modifier.fillMaxWidth().background(DarkSurface).padding(16.dp)) {
-            Text("Profil Default / Idle", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-            Text("Diterapkan saat tidak ada app berprofl yang aktif", fontSize = 11.sp, color = TextSecondary)
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(vertical = 16.dp)
+    ) {
+        item {
+            if (showDone) {
+                Card(colors = CardDefaults.cardColors(containerColor = Cyan400.copy(alpha = 0.15f)), shape = RoundedCornerShape(10.dp)) {
+                    Text(doneMsg, modifier = Modifier.padding(12.dp), color = Cyan400, fontWeight = FontWeight.Bold)
+                }
+            }
         }
 
-        Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
+        item {
             SectionTitle("CPU Little Cluster")
             SectionCard {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     DropdownSetting("Governor", littleGov,
-                        governors.ifEmpty { listOf("schedutil","powersave","performance","conservative","ondemand","walt","schedhorizon") }
+                        littleGovernors.ifEmpty { listOf("schedutil","powersave","performance","conservative","ondemand","walt","schedhorizon") }
                     ) { littleGov = it }
                     HorizontalDivider(color = DarkCardElevated)
-                    FrequencyDropdown("Min Frequency", littleMin, frequencies) { littleMin = it }
+                    FrequencyDropdown("Min Frequency", littleMin, littleFrequencies) { littleMin = it }
                     HorizontalDivider(color = DarkCardElevated)
-                    FrequencyDropdown("Max Frequency", littleMax, frequencies) { littleMax = it }
+                    FrequencyDropdown("Max Frequency", littleMax, littleFrequencies) { littleMax = it }
                 }
             }
+        }
 
+        item {
             SectionTitle("CPU Big Cluster")
             SectionCard {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    DropdownSetting("Governor", bigGov,
+                    DropdownSetting("Governor", littleGov,
                         bigGovernors.ifEmpty { listOf("schedutil","powersave","performance","conservative","ondemand","walt","schedhorizon") }
-                    ) { bigGov = it }
+                    ) { littleGov = it }
                     HorizontalDivider(color = DarkCardElevated)
-                    FrequencyDropdown("Min Frequency", bigMin, bigFrequencies) { bigMin = it }
+                    FrequencyDropdown("Min Frequency", littleMin, littleFrequencies) { littleMin = it }
                     HorizontalDivider(color = DarkCardElevated)
-                    FrequencyDropdown("Max Frequency", bigMax, bigFrequencies) { bigMax = it }
+                    FrequencyDropdown("Max Frequency", littleMax, littleFrequencies) { littleMax = it }
                 }
             }
+        }
 
+        item {
             SectionTitle("GPU")
             SectionCard {
                 DropdownSetting("GPU Governor", gpuGov,
                     (listOf("default") + gpuGovernors).ifEmpty { listOf("default","msm-adreno-tz","performance","powersave","simple_ondemand") }
                 ) { gpuGov = it }
             }
+        }
 
+        item {
             SectionTitle("I/O Scheduler")
             SectionCard {
                 DropdownSetting("Scheduler", ioSched,
                     (listOf("default") + schedulers).ifEmpty { listOf("default","bfq","kyber","mq-deadline","noop") }
                 ) { ioSched = it }
             }
+        }
 
+        item {
             SectionTitle("Thermal Profile")
             SectionCard {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -133,7 +125,9 @@ fun DefaultProfileScreen(viewModel: MainViewModel) {
                     )
                 }
             }
+        }
 
+        item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedButton(
                     onClick = {

@@ -15,7 +15,6 @@ android {
         versionCode = 3
         versionName = "3.0"
 
-        // Batasi ke ARM64 saja - kurangi ukuran APK signifikan
         ndk {
             abiFilters += listOf("arm64-v8a")
         }
@@ -49,7 +48,6 @@ android {
 dependencies {
     implementation("androidx.compose.ui:ui:1.6.7")
     implementation("androidx.compose.material3:material3:1.2.1")
-    // Import hanya icon yang dipakai - bukan icons-extended yang besar
     implementation("androidx.compose.material:material-icons-core:1.6.7")
     implementation("androidx.compose.material:material-icons-extended:1.6.7")
     implementation("androidx.activity:activity-compose:1.9.0")
@@ -62,4 +60,5 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
     implementation("androidx.core:core-ktx:1.13.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 }
