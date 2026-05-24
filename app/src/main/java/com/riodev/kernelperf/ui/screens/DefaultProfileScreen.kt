@@ -22,7 +22,6 @@ import kotlinx.coroutines.launch
 fun DefaultProfileScreen(viewModel: MainViewModel) {
     val scope = rememberCoroutineScope()
     val defaultProfile by viewModel.defaultProfile.collectAsState()
-    val kernelStatus by viewModel.kernelStatus.collectAsState()
 
     var littleGov by remember(defaultProfile) { mutableStateOf(defaultProfile.cpuGovernor) }
     var littleMin by remember(defaultProfile) { mutableStateOf(defaultProfile.cpuMinFreq) }
@@ -35,13 +34,11 @@ fun DefaultProfileScreen(viewModel: MainViewModel) {
     var showDone by remember { mutableStateOf(false) }
     var doneMsg by remember { mutableStateOf("") }
 
-    val littleGovernors = remember { RootUtils.readFile("/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors").split(" ").filter { it.isNotBlank() } }
-    val bigGovernors = remember { RootUtils.readFile("/sys/devices/system/cpu/cpu4/cpufreq/scaling_available_governors").split(" ").filter { it.isNotBlank() } }
-    val gpuGovernors = remember { RootUtils.readFile("/sys/class/kgsl/kgsl-3d0/devfreq/available_governors").split(" ").filter { it.isNotBlank() } }
-    val schedulers = remember { RootUtils.readFile("/sys/block/sda/queue/scheduler").replace(Regex("[\\[\\]]"), "").split(" ").filter { it.isNotBlank() } }
-    val littleFrequencies = remember { RootUtils.readFile("/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_frequencies").split(" ").filter { it.isNotBlank() }.mapNotNull { it.trim().toIntOrNull() } }
-    val littleFrequencies = remember { RootUtils.readFile("/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_frequencies").split(" ").filter { s -> s.isNotBlank() }.mapNotNull { s -> s.trim().toIntOrNull() } }
-    val bigFrequencies = remember { RootUtils.readFile("/sys/devices/system/cpu/cpu4/cpufreq/scaling_available_frequencies").split(" ").filter { s -> s.isNotBlank() }.mapNotNull { s -> s.trim().toIntOrNull() } }
+    val governors by viewModel.governors.collectAsState()
+    val frequencies by viewModel.frequencies.collectAsState()
+    val schedulers by viewModel.schedulers.collectAsState()
+    val gpuGovernors by viewModel.gpuGovernors.collectAsState()
+
     if (showDone) {
         LaunchedEffect(showDone) {
             kotlinx.coroutines.delay(2000)
@@ -56,7 +53,10 @@ fun DefaultProfileScreen(viewModel: MainViewModel) {
     ) {
         item {
             if (showDone) {
-                Card(colors = CardDefaults.cardColors(containerColor = Cyan400.copy(alpha = 0.15f)), shape = RoundedCornerShape(10.dp)) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Cyan400.copy(alpha = 0.15f)),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
                     Text(doneMsg, modifier = Modifier.padding(12.dp), color = Cyan400, fontWeight = FontWeight.Bold)
                 }
             }
@@ -66,28 +66,15 @@ fun DefaultProfileScreen(viewModel: MainViewModel) {
             SectionTitle("CPU Little Cluster")
             SectionCard {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    DropdownSetting("Governor", littleGov,
-                        littleGovernors.ifEmpty { listOf("schedutil","powersave","performance","conservative","ondemand","walt","schedhorizon") }
+                    DropdownSetting(
+                        label = "Governor",
+                        value = littleGov,
+                        options = governors.ifEmpty { listOf("schedutil","powersave","performance","conservative","ondemand","walt") }
                     ) { littleGov = it }
                     HorizontalDivider(color = DarkCardElevated)
-                    FrequencyDropdown("Min Frequency", littleMin, littleFrequencies) { littleMin = it }
+                    FrequencyDropdown("Min Frequency", littleMin, frequencies) { littleMin = it }
                     HorizontalDivider(color = DarkCardElevated)
-                    FrequencyDropdown("Max Frequency", littleMax, littleFrequencies) { littleMax = it }
-                }
-            }
-        }
-
-        item {
-            SectionTitle("CPU Big Cluster")
-            SectionCard {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    DropdownSetting("Governor", littleGov,
-                        bigGovernors.ifEmpty { listOf("schedutil","powersave","performance","conservative","ondemand","walt","schedhorizon") }
-                    ) { littleGov = it }
-                    HorizontalDivider(color = DarkCardElevated)
-                    FrequencyDropdown("Min Frequency", littleMin, littleFrequencies) { littleMin = it }
-                    HorizontalDivider(color = DarkCardElevated)
-                    FrequencyDropdown("Max Frequency", littleMax, littleFrequencies) { littleMax = it }
+                    FrequencyDropdown("Max Frequency", littleMax, frequencies) { littleMax = it }
                 }
             }
         }
@@ -95,8 +82,10 @@ fun DefaultProfileScreen(viewModel: MainViewModel) {
         item {
             SectionTitle("GPU")
             SectionCard {
-                DropdownSetting("GPU Governor", gpuGov,
-                    (listOf("default") + gpuGovernors.toList()).ifEmpty { listOf("default","msm-adreno-tz","performance","powersave","simple_ondemand") }
+                DropdownSetting(
+                    label = "GPU Governor",
+                    value = gpuGov,
+                    options = (listOf("default") + gpuGovernors).ifEmpty { listOf("default","msm-adreno-tz","performance","powersave") }
                 ) { gpuGov = it }
             }
         }
@@ -104,8 +93,10 @@ fun DefaultProfileScreen(viewModel: MainViewModel) {
         item {
             SectionTitle("I/O Scheduler")
             SectionCard {
-                DropdownSetting("Scheduler", ioSched,
-                    (listOf("default") + schedulers.toList()).ifEmpty { listOf("default","bfq","kyber","mq-deadline","noop") }
+                DropdownSetting(
+                    label = "Scheduler",
+                    value = ioSched,
+                    options = (listOf("default") + schedulers).ifEmpty { listOf("default","bfq","kyber","mq-deadline","noop") }
                 ) { ioSched = it }
             }
         }
@@ -121,7 +112,11 @@ fun DefaultProfileScreen(viewModel: MainViewModel) {
                         onValueChange = { thermal = it.toInt() },
                         valueRange = 0f..10f,
                         steps = 9,
-                        colors = SliderDefaults.colors(thumbColor = Cyan400, activeTrackColor = Cyan400, inactiveTrackColor = DarkCardElevated)
+                        colors = SliderDefaults.colors(
+                            thumbColor = Cyan400,
+                            activeTrackColor = Cyan400,
+                            inactiveTrackColor = DarkCardElevated
+                        )
                     )
                 }
             }
@@ -180,7 +175,6 @@ fun DefaultProfileScreen(viewModel: MainViewModel) {
                     }
                 }
             }
-
             Spacer(Modifier.height(40.dp))
         }
     }

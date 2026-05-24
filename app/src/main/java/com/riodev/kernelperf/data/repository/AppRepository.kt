@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
 class AppRepository(private val context: Context) {
-    private val db = AppDatabase.getInstance(context)
+    private val db = AppDatabase.getDatabase(context)
     private val dao = db.appProfileDao()
 
     fun getAllProfiles(): Flow<List<AppProfile>> = dao.getAllProfiles()
@@ -29,9 +29,9 @@ class AppRepository(private val context: Context) {
 
     suspend fun getInstalledApps(): List<InstalledApp> = withContext(Dispatchers.IO) {
         val pm = context.packageManager
-        val profiles = dao.getAllProfiles().first().associateBy { it.packageName }
+        val profiles = dao.getAllProfiles().first().associateBy { profile -> profile.packageName }
         pm.getInstalledApplications(PackageManager.GET_META_DATA)
-            .filter { it.flags and ApplicationInfo.FLAG_SYSTEM == 0 }
+            .filter { info -> info.flags and ApplicationInfo.FLAG_SYSTEM == 0 }
             .map { info ->
                 InstalledApp(
                     packageName = info.packageName,
@@ -39,17 +39,11 @@ class AppRepository(private val context: Context) {
                     hasProfile = profiles.containsKey(info.packageName)
                 )
             }
-            .sortedBy { it.appName }
+            .sortedBy { app -> app.appName }
     }
 
     suspend fun applyProfile(packageName: String) {
         val profile = getProfile(packageName) ?: return
-        withContext(Dispatchers.IO) {
-            if (profile.cpuGovernor.isNotEmpty()) RootUtils.setGovernor(profile.cpuGovernor)
-            if (profile.cpuMinFreq > 0) RootUtils.setMinFreq(profile.cpuMinFreq)
-            if (profile.cpuMaxFreq > 0) RootUtils.setMaxFreq(profile.cpuMaxFreq)
-            if (profile.gpuGovernor != "default") RootUtils.setGpuGovernor(profile.gpuGovernor)
-            if (profile.ioScheduler != "default") RootUtils.setScheduler(profile.ioScheduler)
-        }
+        RootUtils.applyProfile(profile)
     }
 }

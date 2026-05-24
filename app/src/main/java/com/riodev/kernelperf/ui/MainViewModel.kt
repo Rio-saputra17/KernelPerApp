@@ -17,11 +17,11 @@ import com.riodev.kernelperf.root.RootUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
@@ -50,16 +50,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val filteredApps: StateFlow<List<InstalledApp>> = combine(_installedApps, _searchQuery) { apps, query ->
         if (query.isBlank()) apps
-        else apps.filter {
-            it.appName.contains(query, ignoreCase = true) ||
-            it.packageName.contains(query, ignoreCase = true)
+        else apps.filter { app ->
+            app.appName.contains(query, ignoreCase = true) ||
+            app.packageName.contains(query, ignoreCase = true)
         }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     private val _appProfiles = MutableStateFlow<List<AppProfile>>(emptyList())
     val appProfiles: StateFlow<List<AppProfile>> = _appProfiles.asStateFlow()
-
-    // alias dipakai HomeScreen
     val profiles: StateFlow<List<AppProfile>> = _appProfiles
 
     private val _isRooted = MutableStateFlow(false)
@@ -71,7 +69,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _activeProfileApp = MutableStateFlow("")
     val activeProfileApp: StateFlow<String> = _activeProfileApp.asStateFlow()
 
-    // Kernel option lists — dipakai ProfileEditorScreen
     private val _governors = MutableStateFlow<List<String>>(emptyList())
     val governors: StateFlow<List<String>> = _governors.asStateFlow()
 
@@ -88,7 +85,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         viewModelScope.launch {
-            _isRooted.value = RootUtils.isRooted()
+            _isRooted.value = RootUtils.isRooted
             loadDeviceInfo()
             loadKernelOptions()
             loadInstalledApps()
@@ -101,26 +98,40 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun startPolling() {
         viewModelScope.launch {
             while (true) {
-                _kernelStatus.value = RootUtils.getKernelStatus()
+                val littlePolicy = RootUtils.getLittlePolicy()
+                val bigPolicy = RootUtils.getBigPolicy()
+                _kernelStatus.value = KernelStatus(
+                    littleGovernor = RootUtils.getGovernor(littlePolicy),
+                    littleMinFreq = RootUtils.getMinFreq(littlePolicy),
+                    littleMaxFreq = RootUtils.getMaxFreq(littlePolicy),
+                    littleCurFreq = RootUtils.getCurFreq(littlePolicy),
+                    bigGovernor = RootUtils.getGovernor(bigPolicy),
+                    bigMinFreq = RootUtils.getMinFreq(bigPolicy),
+                    bigMaxFreq = RootUtils.getMaxFreq(bigPolicy),
+                    bigCurFreq = RootUtils.getCurFreq(bigPolicy),
+                    gpuGovernor = RootUtils.getGpuGovernor(),
+                    gpuMinFreq = RootUtils.getGpuMinFreq(),
+                    gpuMaxFreq = RootUtils.getGpuMaxFreq(),
+                    gpuCurFreq = RootUtils.getGpuCurFreq(),
+                    cpuTemp = RootUtils.getCpuTemp(),
+                    batteryTemp = RootUtils.getBatteryTemp(),
+                    ioScheduler = RootUtils.getCurrentScheduler()
+                )
                 delay(1500)
             }
         }
     }
 
-    private suspend fun loadDeviceInfo() {
+    private fun loadDeviceInfo() {
         _deviceInfo.value = RootUtils.getDeviceInfo()
     }
 
     private fun loadKernelOptions() {
         viewModelScope.launch {
-            _governors.value = RootUtils.readFile("/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors")
-                .split(" ").filter { it.isNotBlank() }
-            _frequencies.value = RootUtils.readFile("/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_frequencies")
-                .split(" ").filter { it.isNotBlank() }.mapNotNull { it.trim().toIntOrNull() }
-            _schedulers.value = RootUtils.readFile("/sys/block/sda/queue/scheduler")
-                .replace(Regex("[\\[\\]]"), "").split(" ").filter { it.isNotBlank() }
-            _gpuGovernors.value = RootUtils.readFile("/sys/class/kgsl/kgsl-3d0/devfreq/available_governors")
-                .split(" ").filter { it.isNotBlank() }
+            _governors.value = RootUtils.getAvailableGovernors()
+            _frequencies.value = RootUtils.getAvailableFrequencies()
+            _schedulers.value = RootUtils.getAvailableSchedulers()
+            _gpuGovernors.value = RootUtils.getAvailableGpuGovernors()
         }
     }
 
