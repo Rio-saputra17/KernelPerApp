@@ -96,7 +96,7 @@ fun DefaultProfileScreen(viewModel: MainViewModel) {
             SectionTitle("GPU")
             SectionCard {
                 DropdownSetting("GPU Governor", gpuGov,
-                    (listOf("default") + gpuGovernors).ifEmpty { listOf("default","msm-adreno-tz","performance","powersave","simple_ondemand") }
+                    (listOf("default") + gpuGovernors.toList()).ifEmpty { listOf("default","msm-adreno-tz","performance","powersave","simple_ondemand") }
                 ) { gpuGov = it }
             }
         }
@@ -105,7 +105,7 @@ fun DefaultProfileScreen(viewModel: MainViewModel) {
             SectionTitle("I/O Scheduler")
             SectionCard {
                 DropdownSetting("Scheduler", ioSched,
-                    (listOf("default") + schedulers).ifEmpty { listOf("default","bfq","kyber","mq-deadline","noop") }
+                    (listOf("default") + schedulers.toList()).ifEmpty { listOf("default","bfq","kyber","mq-deadline","noop") }
                 ) { ioSched = it }
             }
         }
