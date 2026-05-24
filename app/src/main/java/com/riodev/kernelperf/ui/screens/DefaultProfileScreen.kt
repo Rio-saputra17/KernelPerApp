@@ -1,10 +1,16 @@
 package com.riodev.kernelperf.ui.screens
 
-import androidx.compose.foundation.*
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,7 +23,6 @@ import androidx.compose.ui.window.Dialog
 import com.riodev.kernelperf.root.RootUtils
 import com.riodev.kernelperf.ui.MainViewModel
 import com.riodev.kernelperf.ui.theme.*
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -29,25 +34,22 @@ fun DefaultProfileScreen(viewModel: MainViewModel) {
     val bigFrequencies by viewModel.bigFrequencies.collectAsState()
     val schedulers by viewModel.schedulers.collectAsState()
     val gpuGovernors by viewModel.gpuGovernors.collectAsState()
-    val defaultProfile by viewModel.defaultProfile.collectAsState()
+    val dp by viewModel.defaultProfile.collectAsState()
 
-    var littleGov by remember(defaultProfile) { mutableStateOf(defaultProfile.cpuGovernor) }
-    var bigGov by remember(defaultProfile) { mutableStateOf(defaultProfile.cpuGovernor) }
-    var littleMinFreq by remember(defaultProfile) { mutableStateOf(defaultProfile.cpuMinFreq) }
-    var littleMaxFreq by remember(defaultProfile) { mutableStateOf(defaultProfile.cpuMaxFreq) }
-    var bigMinFreq by remember(defaultProfile) { mutableStateOf(defaultProfile.cpuMinFreq) }
-    var bigMaxFreq by remember(defaultProfile) { mutableStateOf(defaultProfile.cpuMaxFreq) }
-    var gpuGov by remember(defaultProfile) { mutableStateOf(defaultProfile.gpuGovernor) }
-    var gpuMinFreq by remember(defaultProfile) { mutableStateOf(defaultProfile.gpuMinFreq) }
-    var gpuMaxFreq by remember(defaultProfile) { mutableStateOf(defaultProfile.gpuMaxFreq) }
-    var ioSched by remember(defaultProfile) { mutableStateOf(defaultProfile.ioScheduler) }
-    var thermalProfile by remember(defaultProfile) { mutableStateOf(defaultProfile.thermalProfile) }
+    var littleGov by remember(dp.cpuGovernor) { mutableStateOf(dp.cpuGovernor) }
+    var bigGov by remember(dp.cpuGovernor) { mutableStateOf(dp.cpuGovernor) }
+    var littleMin by remember(dp.cpuMinFreq) { mutableStateOf(dp.cpuMinFreq) }
+    var littleMax by remember(dp.cpuMaxFreq) { mutableStateOf(dp.cpuMaxFreq) }
+    var bigMin by remember(dp.cpuMinFreq) { mutableStateOf(dp.cpuMinFreq) }
+    var bigMax by remember(dp.cpuMaxFreq) { mutableStateOf(dp.cpuMaxFreq) }
+    var gpuGov by remember(dp.gpuGovernor) { mutableStateOf(dp.gpuGovernor) }
+    var ioSched by remember(dp.ioScheduler) { mutableStateOf(dp.ioScheduler) }
+    var thermal by remember(dp.thermalProfile) { mutableStateOf(dp.thermalProfile) }
 
     var isBusy by remember { mutableStateOf(false) }
     var showDone by remember { mutableStateOf(false) }
     var doneMsg by remember { mutableStateOf("") }
 
-    // Done popup
     if (showDone) {
         Dialog(onDismissRequest = { showDone = false }) {
             Column(
@@ -68,10 +70,7 @@ fun DefaultProfileScreen(viewModel: MainViewModel) {
     }
 
     Column(modifier = Modifier.fillMaxSize().background(DarkBg)) {
-        Column(
-            modifier = Modifier.fillMaxWidth().background(DarkSurface).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
+        Column(modifier = Modifier.fillMaxWidth().background(DarkSurface).padding(16.dp)) {
             Text("Profil Default / Idle", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
             Text("Diterapkan saat tidak ada app berprofl yang aktif", fontSize = 11.sp, color = TextSecondary)
         }
@@ -80,53 +79,54 @@ fun DefaultProfileScreen(viewModel: MainViewModel) {
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // ── Little Cluster ─────────────────────────────────
             SectionTitle("CPU Little Cluster")
             SectionCard {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    DropdownSetting("Governor", littleGov, governors.ifEmpty { listOf("schedutil","powersave","performance","conservative","ondemand","walt","schedhorizon") }) { littleGov = it }
+                    DropdownSetting("Governor", littleGov,
+                        governors.ifEmpty { listOf("schedutil","powersave","performance","conservative","ondemand","walt","schedhorizon") }
+                    ) { littleGov = it }
                     HorizontalDivider(color = DarkCardElevated)
-                    FrequencyDropdown("Min Frequency", littleMinFreq, frequencies) { littleMinFreq = it }
+                    FrequencyDropdown("Min Frequency", littleMin, frequencies) { littleMin = it }
                     HorizontalDivider(color = DarkCardElevated)
-                    FrequencyDropdown("Max Frequency", littleMaxFreq, frequencies) { littleMaxFreq = it }
+                    FrequencyDropdown("Max Frequency", littleMax, frequencies) { littleMax = it }
                 }
             }
 
-            // ── Big Cluster ────────────────────────────────────
             SectionTitle("CPU Big Cluster")
             SectionCard {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    DropdownSetting("Governor", bigGov, bigGovernors.ifEmpty { listOf("schedutil","powersave","performance","conservative","ondemand","walt","schedhorizon") }) { bigGov = it }
+                    DropdownSetting("Governor", bigGov,
+                        bigGovernors.ifEmpty { listOf("schedutil","powersave","performance","conservative","ondemand","walt","schedhorizon") }
+                    ) { bigGov = it }
                     HorizontalDivider(color = DarkCardElevated)
-                    FrequencyDropdown("Min Frequency", bigMinFreq, bigFrequencies) { bigMinFreq = it }
+                    FrequencyDropdown("Min Frequency", bigMin, bigFrequencies) { bigMin = it }
                     HorizontalDivider(color = DarkCardElevated)
-                    FrequencyDropdown("Max Frequency", bigMaxFreq, bigFrequencies) { bigMaxFreq = it }
+                    FrequencyDropdown("Max Frequency", bigMax, bigFrequencies) { bigMax = it }
                 }
             }
 
-            // ── GPU ────────────────────────────────────────────
             SectionTitle("GPU")
             SectionCard {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    DropdownSetting("GPU Governor", gpuGov, (listOf("default") + gpuGovernors)) { gpuGov = it }
-                }
+                DropdownSetting("GPU Governor", gpuGov,
+                    (listOf("default") + gpuGovernors).ifEmpty { listOf("default","msm-adreno-tz","performance","powersave","simple_ondemand") }
+                ) { gpuGov = it }
             }
 
-            // ── I/O ────────────────────────────────────────────
             SectionTitle("I/O Scheduler")
             SectionCard {
-                DropdownSetting("Scheduler", ioSched, (listOf("default") + schedulers)) { ioSched = it }
+                DropdownSetting("Scheduler", ioSched,
+                    (listOf("default") + schedulers).ifEmpty { listOf("default","bfq","kyber","mq-deadline","noop") }
+                ) { ioSched = it }
             }
 
-            // ── Thermal ────────────────────────────────────────
             SectionTitle("Thermal Profile")
             SectionCard {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Profile: $thermalProfile", fontSize = 13.sp, color = Cyan400, fontWeight = FontWeight.Medium)
-                    Text("0=Default, 1=Performance, 2=Balanced, 3=Cool", fontSize = 11.sp, color = TextSecondary)
+                    Text("Profile: $thermal", fontSize = 13.sp, color = Cyan400, fontWeight = FontWeight.Medium)
+                    Text("0=Default  1=Performance  2=Balanced  3=Cool", fontSize = 11.sp, color = TextSecondary)
                     Slider(
-                        value = thermalProfile.toFloat(),
-                        onValueChange = { thermalProfile = it.toInt() },
+                        value = thermal.toFloat(),
+                        onValueChange = { thermal = it.toInt() },
                         valueRange = 0f..10f,
                         steps = 9,
                         colors = SliderDefaults.colors(thumbColor = Cyan400, activeTrackColor = Cyan400, inactiveTrackColor = DarkCardElevated)
@@ -134,18 +134,17 @@ fun DefaultProfileScreen(viewModel: MainViewModel) {
                 }
             }
 
-            // ── Buttons ────────────────────────────────────────
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedButton(
                     onClick = {
                         scope.launch {
                             isBusy = true
                             RootUtils.setGovernor(littleGov)
-                            if (littleMinFreq > 0) RootUtils.setMinFreq(littleMinFreq)
-                            if (littleMaxFreq > 0) RootUtils.setMaxFreq(littleMaxFreq)
+                            if (littleMin > 0) RootUtils.setMinFreq(littleMin)
+                            if (littleMax > 0) RootUtils.setMaxFreq(littleMax)
                             if (gpuGov != "default") RootUtils.setGpuGovernor(gpuGov)
                             if (ioSched != "default") RootUtils.setScheduler(ioSched)
-                            RootUtils.setThermalProfile(thermalProfile)
+                            RootUtils.setThermalProfile(thermal)
                             isBusy = false
                             doneMsg = "Terapkan Sekarang"
                             showDone = true
@@ -157,14 +156,18 @@ fun DefaultProfileScreen(viewModel: MainViewModel) {
                     enabled = !isBusy
                 ) {
                     if (isBusy) CircularProgressIndicator(color = Cyan400, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    else { Icon(Icons.Default.PlayArrow, null, tint = Cyan400, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Terapkan", color = Cyan400, fontSize = 13.sp) }
+                    else {
+                        Icon(Icons.Default.PlayArrow, null, tint = Cyan400, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Terapkan", color = Cyan400, fontSize = 13.sp)
+                    }
                 }
 
                 Button(
                     onClick = {
                         scope.launch {
                             isBusy = true
-                            viewModel.saveDefaultProfile(littleGov, littleMinFreq, littleMaxFreq, gpuGov, gpuMinFreq, gpuMaxFreq, ioSched, thermalProfile)
+                            viewModel.saveDefaultProfile(littleGov, littleMin, littleMax, gpuGov, 0, 0, ioSched, thermal)
                             isBusy = false
                             doneMsg = "Profil Tersimpan"
                             showDone = true
@@ -176,7 +179,11 @@ fun DefaultProfileScreen(viewModel: MainViewModel) {
                     enabled = !isBusy
                 ) {
                     if (isBusy) CircularProgressIndicator(color = DarkBg, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    else { Icon(Icons.Default.Save, null, tint = DarkBg, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Simpan", color = DarkBg, fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+                    else {
+                        Icon(Icons.Default.Save, null, tint = DarkBg, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Simpan", color = DarkBg, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
                 }
             }
 

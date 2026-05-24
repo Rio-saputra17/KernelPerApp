@@ -6,74 +6,39 @@ import android.content.pm.PackageManager
 import com.riodev.kernelperf.data.model.AppDatabase
 import com.riodev.kernelperf.data.model.AppProfile
 import com.riodev.kernelperf.data.model.InstalledApp
-import com.riodev.kernelperf.data.model.KernelStatus
 import com.riodev.kernelperf.root.RootUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 
 class AppRepository(private val context: Context) {
-
     private val db = AppDatabase.getDatabase(context)
     private val dao = db.appProfileDao()
 
-    // ─── Profiles ─────────────────────────────────────────────────
     fun getAllProfiles(): Flow<List<AppProfile>> = dao.getAllProfiles()
-
-    suspend fun getProfile(packageName: String): AppProfile? = dao.getProfile(packageName)
-
-    suspend fun saveProfile(profile: AppProfile) {
-        dao.insertProfile(profile.copy(updatedAt = System.currentTimeMillis()))
-    }
-
-    suspend fun deleteProfile(packageName: String) = dao.deleteByPackage(packageName)
-
+    suspend fun getProfile(pkg: String): AppProfile? = dao.getProfile(pkg)
+    suspend fun saveProfile(p: AppProfile) = dao.insertProfile(p.copy(updatedAt = System.currentTimeMillis()))
+    suspend fun deleteProfile(pkg: String) = dao.deleteByPackage(pkg)
     suspend fun getEnabledProfiles(): List<AppProfile> = dao.getEnabledProfiles()
 
-    // ─── Installed Apps ───────────────────────────────────────────
     suspend fun getInstalledApps(): List<InstalledApp> = withContext(Dispatchers.IO) {
         val pm = context.packageManager
-        val enabledProfiles = getEnabledProfiles().map { it.packageName }.toSet()
-
+        val enabled = getEnabledProfiles().map { it.packageName }.toSet()
         pm.getInstalledApplications(PackageManager.GET_META_DATA)
-            .filter { isUserApp(it) }
-            .map { info ->
-                InstalledApp(
-                    packageName = info.packageName,
-                    appName = pm.getApplicationLabel(info).toString(),
-                    hasProfile = info.packageName in enabledProfiles
-                )
-            }
+            .filter { (it.flags and ApplicationInfo.FLAG_SYSTEM) == 0 || (it.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0 }
+            .map { InstalledApp(it.packageName, pm.getApplicationLabel(it).toString(), it.packageName in enabled) }
             .sortedWith(compareByDescending<InstalledApp> { it.hasProfile }.thenBy { it.appName })
     }
 
-    private fun isUserApp(info: ApplicationInfo): Boolean {
-        return (info.flags and ApplicationInfo.FLAG_SYSTEM) == 0 ||
-               (info.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+    suspend fun applyProfile(pkg: String) {
+        val p = dao.getProfile(pkg) ?: return
+        if (p.isEnabled) RootUtils.applyProfile(p)
     }
 
-    // ─── Kernel Status ────────────────────────────────────────────
-    suspend fun getKernelStatus(): KernelStatus {
-        return KernelStatus(
-            currentGovernor = RootUtils.getCurrentGovernor(),
-            currentMinFreq = RootUtils.getCurrentMinFreq(),
-            currentMaxFreq = RootUtils.getCurrentMaxFreq(),
-            currentFreq = RootUtils.getCurrentFreq(),
-            cpuTemp = RootUtils.getCpuTemp(),
-            gpuGovernor = RootUtils.getGpuGovernor(),
-            ioScheduler = RootUtils.getCurrentScheduler()
-        )
-    }
-
-    // ─── Available Options ────────────────────────────────────────
-    suspend fun getAvailableGovernors(): List<String> = RootUtils.getAvailableGovernors()
-    suspend fun getAvailableFrequencies(): List<Int> = RootUtils.getAvailableFrequencies()
-    suspend fun getAvailableSchedulers(): List<String> = RootUtils.getAvailableSchedulers()
-    suspend fun getAvailableGpuGovernors(): List<String> = RootUtils.getAvailableGpuGovernors()
-
-    // ─── Apply Profile ────────────────────────────────────────────
-    suspend fun applyProfile(packageName: String) {
-        val profile = dao.getProfile(packageName) ?: return
-        if (profile.isEnabled) RootUtils.applyProfile(profile)
-    }
+    suspend fun getAvailableGovernors() = RootUtils.getAvailableGovernors("policy0")
+    suspend fun getAvailableGovernorsBig() = RootUtils.getAvailableGovernors("policy4").ifEmpty { getAvailableGovernors() }
+    suspend fun getAvailableFrequencies() = RootUtils.getAvailableFrequencies("policy0")
+    suspend fun getAvailableFrequenciesBig() = RootUtils.getAvailableFrequencies("policy4").ifEmpty { getAvailableFrequencies() }
+    suspend fun getAvailableSchedulers() = RootUtils.getAvailableSchedulers()
+    suspend fun getAvailableGpuGovernors() = RootUtils.getAvailableGpuGovernors()
 }

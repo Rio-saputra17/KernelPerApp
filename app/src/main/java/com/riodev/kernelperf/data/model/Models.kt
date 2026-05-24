@@ -36,25 +36,20 @@ data class InstalledApp(
 )
 
 data class KernelStatus(
-    // Little cluster
     val littleGovernor: String = "-",
     val littleMinFreq: String = "-",
     val littleMaxFreq: String = "-",
     val littleCurFreq: String = "-",
-    // Big cluster
     val bigGovernor: String = "-",
     val bigMinFreq: String = "-",
     val bigMaxFreq: String = "-",
     val bigCurFreq: String = "-",
-    // GPU
     val gpuGovernor: String = "-",
     val gpuMinFreq: String = "-",
     val gpuMaxFreq: String = "-",
     val gpuCurFreq: String = "-",
-    // Thermal
     val cpuTemp: String = "-",
     val batteryTemp: String = "-",
-    // I/O
     val ioScheduler: String = "-"
 )
 
