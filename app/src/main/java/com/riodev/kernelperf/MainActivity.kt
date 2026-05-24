@@ -4,11 +4,14 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
-import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.layout.*
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -31,27 +34,46 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-data class BottomNavItem(val route: String, val icon: ImageVector, val label: String)
+data class NavItem(val route: String, val icon: ImageVector, val label: String)
 
 @Composable
 fun KernelPerfApp(viewModel: MainViewModel) {
     val navController = rememberNavController()
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route
+    val currentEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = currentEntry?.destination?.route
     val bottomRoutes = listOf("home", "profile_default", "apps")
-    val showBottomBar = currentRoute in bottomRoutes
 
     Scaffold(
         containerColor = DarkBg,
         bottomBar = {
-            if (showBottomBar) {
-                BottomNavBar(currentRoute = currentRoute, onNavigate = { route ->
-                    navController.navigate(route) {
-                        popUpTo("home") { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
+            if (currentRoute in bottomRoutes) {
+                val items = listOf(
+                    NavItem("home", Icons.Default.Dashboard, "Dashboard"),
+                    NavItem("profile_default", Icons.Default.Tune, "Profil"),
+                    NavItem("apps", Icons.Default.Apps, "Aplikasi")
+                )
+                NavigationBar(containerColor = DarkSurface, tonalElevation = 0.dp) {
+                    items.forEach { item ->
+                        val selected = currentRoute == item.route
+                        NavigationBarItem(
+                            selected = selected,
+                            onClick = {
+                                navController.navigate(item.route) {
+                                    popUpTo("home") { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            icon = { Icon(item.icon, contentDescription = item.label) },
+                            label = { Text(item.label) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = Cyan400, selectedTextColor = Cyan400,
+                                unselectedIconColor = TextSecondary, unselectedTextColor = TextSecondary,
+                                indicatorColor = Cyan400.copy(alpha = 0.15f)
+                            )
+                        )
                     }
-                })
+                }
             }
         }
     ) { padding ->
@@ -78,31 +100,6 @@ fun KernelPerfApp(viewModel: MainViewModel) {
                 val pkg = URLDecoder.decode(back.arguments?.getString("packageName") ?: "", "UTF-8")
                 ProfileEditorScreen(packageName = pkg, viewModel = viewModel, onBack = { navController.popBackStack() })
             }
-        }
-    }
-}
-
-@Composable
-fun BottomNavBar(currentRoute: String?, onNavigate: (String) -> Unit) {
-    val items = listOf(
-        BottomNavItem("home", Icons.Default.Dashboard, "Dashboard"),
-        BottomNavItem("profile_default", Icons.Default.Tune, "Profil"),
-        BottomNavItem("apps", Icons.Default.Apps, "Aplikasi")
-    )
-    NavigationBar(containerColor = DarkSurface, tonalElevation = 0.dp) {
-        items.forEach { item ->
-            val selected = currentRoute == item.route
-            NavigationBarItem(
-                selected = selected,
-                onClick = { onNavigate(item.route) },
-                icon = { Icon(item.icon, contentDescription = item.label) },
-                label = { Text(item.label) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = Cyan400, selectedTextColor = Cyan400,
-                    unselectedIconColor = TextSecondary, unselectedTextColor = TextSecondary,
-                    indicatorColor = Cyan400.copy(alpha = 0.15f)
-                )
-            )
         }
     }
 }

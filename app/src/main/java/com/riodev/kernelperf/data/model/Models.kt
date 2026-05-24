@@ -22,52 +22,34 @@ data class AppProfile(
 )
 
 enum class PowerMode(val label: String) {
-    POWERSAVE("Power Save"),
-    BALANCED("Balanced"),
-    PERFORMANCE("Performance"),
-    GAMING("Gaming"),
-    CUSTOM("Custom")
+    POWERSAVE("Power Save"), BALANCED("Balanced"),
+    PERFORMANCE("Performance"), GAMING("Gaming"), CUSTOM("Custom")
 }
 
-data class InstalledApp(
-    val packageName: String,
-    val appName: String,
-    val hasProfile: Boolean = false
-)
+data class InstalledApp(val packageName: String, val appName: String, val hasProfile: Boolean = false)
 
 data class KernelStatus(
-    val littleGovernor: String = "-",
-    val littleMinFreq: String = "-",
-    val littleMaxFreq: String = "-",
-    val littleCurFreq: String = "-",
-    val bigGovernor: String = "-",
-    val bigMinFreq: String = "-",
-    val bigMaxFreq: String = "-",
-    val bigCurFreq: String = "-",
-    val gpuGovernor: String = "-",
-    val gpuMinFreq: String = "-",
-    val gpuMaxFreq: String = "-",
-    val gpuCurFreq: String = "-",
-    val cpuTemp: String = "-",
-    val batteryTemp: String = "-",
+    val littleGovernor: String = "-", val littleMinFreq: String = "-",
+    val littleMaxFreq: String = "-", val littleCurFreq: String = "-",
+    val bigGovernor: String = "-", val bigMinFreq: String = "-",
+    val bigMaxFreq: String = "-", val bigCurFreq: String = "-",
+    val gpuGovernor: String = "-", val gpuMinFreq: String = "-",
+    val gpuMaxFreq: String = "-", val gpuCurFreq: String = "-",
+    val cpuTemp: String = "-", val batteryTemp: String = "-",
     val ioScheduler: String = "-"
 )
 
 data class DeviceInfo(
-    val model: String = "-",
-    val chipset: String = "-",
-    val kernel: String = "-",
-    val totalRam: String = "-",
+    val model: String = "-", val chipset: String = "-",
+    val kernel: String = "-", val totalRam: String = "-",
     val androidVersion: String = "-"
 )
 
 data class DefaultProfile(
     val cpuGovernor: String = "schedutil",
-    val cpuMinFreq: Int = 0,
-    val cpuMaxFreq: Int = 0,
+    val cpuMinFreq: Int = 0, val cpuMaxFreq: Int = 0,
     val gpuGovernor: String = "default",
-    val gpuMinFreq: Int = 0,
-    val gpuMaxFreq: Int = 0,
+    val gpuMinFreq: Int = 0, val gpuMaxFreq: Int = 0,
     val ioScheduler: String = "default",
     val thermalProfile: Int = 0
 )

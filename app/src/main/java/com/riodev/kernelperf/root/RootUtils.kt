@@ -1,6 +1,9 @@
 package com.riodev.kernelperf.root
 
 import android.os.Build
+import com.riodev.kernelperf.data.model.AppProfile
+import com.riodev.kernelperf.data.model.DeviceInfo
+import com.riodev.kernelperf.data.model.PowerMode
 import com.topjohnwu.superuser.Shell
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -14,33 +17,29 @@ object RootUtils {
 
     val isRooted: Boolean get() = try { Shell.getShell().isRoot } catch (e: Exception) { false }
 
-    suspend fun node(path: String): String? = withContext(Dispatchers.IO) {
+    private suspend fun node(path: String): String? = withContext(Dispatchers.IO) {
         try {
             val r = Shell.cmd("cat $path 2>/dev/null").exec()
             if (r.isSuccess && r.out.isNotEmpty()) r.out.first().trim() else null
         } catch (e: Exception) { null }
     }
 
-    suspend fun write(path: String, value: String): Boolean = withContext(Dispatchers.IO) {
+    private suspend fun write(path: String, value: String): Boolean = withContext(Dispatchers.IO) {
         try { Shell.cmd("echo '$value' > $path").exec().isSuccess } catch (e: Exception) { false }
     }
 
-    suspend fun cmd(cmd: String): List<String> = withContext(Dispatchers.IO) {
+    private suspend fun sh(cmd: String): List<String> = withContext(Dispatchers.IO) {
         try { Shell.cmd(cmd).exec().out } catch (e: Exception) { emptyList() }
     }
 
-    // ── CPU clusters ─────────────────────────────────────────────
-    suspend fun getCpuCount(): Int = cmd("ls /sys/devices/system/cpu/ | grep -c 'cpu[0-9]'")
-        .firstOrNull()?.trim()?.toIntOrNull() ?: 8
-
-    // Poco X6 5G (SM7550) = cpu0-3 Little, cpu4-6 Big, cpu7 Prime
+    // ── CPU ──────────────────────────────────────────────────────
     suspend fun getLittlePolicy(): String = if (node("/sys/devices/system/cpu/cpufreq/policy0/scaling_governor") != null) "policy0" else "cpu0"
     suspend fun getBigPolicy(): String = if (node("/sys/devices/system/cpu/cpufreq/policy4/scaling_governor") != null) "policy4" else "policy0"
 
     suspend fun getGovernor(policy: String) = node("/sys/devices/system/cpu/cpufreq/$policy/scaling_governor") ?: "-"
-    suspend fun getMinFreq(policy: String): String { val k = node("/sys/devices/system/cpu/cpufreq/$policy/scaling_min_freq")?.toLongOrNull() ?: return "-"; return fmtFreq(k) }
-    suspend fun getMaxFreq(policy: String): String { val k = node("/sys/devices/system/cpu/cpufreq/$policy/scaling_max_freq")?.toLongOrNull() ?: return "-"; return fmtFreq(k) }
-    suspend fun getCurFreq(policy: String): String { val k = node("/sys/devices/system/cpu/cpufreq/$policy/scaling_cur_freq")?.toLongOrNull() ?: return "-"; return fmtFreq(k) }
+    suspend fun getMinFreq(policy: String) = node("/sys/devices/system/cpu/cpufreq/$policy/scaling_min_freq")?.toLongOrNull()?.let { fmtFreq(it) } ?: "-"
+    suspend fun getMaxFreq(policy: String) = node("/sys/devices/system/cpu/cpufreq/$policy/scaling_max_freq")?.toLongOrNull()?.let { fmtFreq(it) } ?: "-"
+    suspend fun getCurFreq(policy: String) = node("/sys/devices/system/cpu/cpufreq/$policy/scaling_cur_freq")?.toLongOrNull()?.let { fmtFreq(it) } ?: "-"
 
     suspend fun getAvailableGovernors(policy: String = "policy0"): List<String> {
         val raw = node("/sys/devices/system/cpu/cpufreq/$policy/scaling_available_governors") ?: return emptyList()
@@ -52,37 +51,36 @@ object RootUtils {
         return raw.split(" ").mapNotNull { it.trim().toIntOrNull() }.sorted()
     }
 
-    suspend fun setGovernor(governor: String): Boolean {
-        val n = getCpuCount()
-        var ok = true
-        for (i in 0 until n) if (!write("/sys/devices/system/cpu/cpu$i/cpufreq/scaling_governor", governor)) ok = false
+    private suspend fun getCpuCount(): Int = sh("ls /sys/devices/system/cpu/ | grep -c 'cpu[0-9]'").firstOrNull()?.trim()?.toIntOrNull() ?: 8
+
+    suspend fun setGovernor(gov: String): Boolean {
+        val n = getCpuCount(); var ok = true
+        for (i in 0 until n) if (!write("/sys/devices/system/cpu/cpu$i/cpufreq/scaling_governor", gov)) ok = false
         return ok
     }
 
-    suspend fun setMinFreq(freqKhz: Int): Boolean {
-        val n = getCpuCount()
-        var ok = true
-        for (i in 0 until n) if (!write("/sys/devices/system/cpu/cpu$i/cpufreq/scaling_min_freq", freqKhz.toString())) ok = false
+    suspend fun setMinFreq(khz: Int): Boolean {
+        val n = getCpuCount(); var ok = true
+        for (i in 0 until n) if (!write("/sys/devices/system/cpu/cpu$i/cpufreq/scaling_min_freq", khz.toString())) ok = false
         return ok
     }
 
-    suspend fun setMaxFreq(freqKhz: Int): Boolean {
-        val n = getCpuCount()
-        var ok = true
-        for (i in 0 until n) if (!write("/sys/devices/system/cpu/cpu$i/cpufreq/scaling_max_freq", freqKhz.toString())) ok = false
+    suspend fun setMaxFreq(khz: Int): Boolean {
+        val n = getCpuCount(); var ok = true
+        for (i in 0 until n) if (!write("/sys/devices/system/cpu/cpu$i/cpufreq/scaling_max_freq", khz.toString())) ok = false
         return ok
     }
 
-    // ── GPU ───────────────────────────────────────────────────────
-    private val GPU_GOV_PATHS = listOf("/sys/class/kgsl/kgsl-3d0/devfreq/governor", "/sys/class/devfreq/gpufreq/governor")
-    private val GPU_CUR_PATHS = listOf("/sys/class/kgsl/kgsl-3d0/gpuclk", "/sys/class/kgsl/kgsl-3d0/devfreq/cur_freq")
-    private val GPU_MIN_PATHS = listOf("/sys/class/kgsl/kgsl-3d0/devfreq/min_freq", "/sys/class/devfreq/gpufreq/min_freq")
-    private val GPU_MAX_PATHS = listOf("/sys/class/kgsl/kgsl-3d0/devfreq/max_freq", "/sys/class/devfreq/gpufreq/max_freq")
+    // ── GPU ──────────────────────────────────────────────────────
+    private val GPU_GOV = listOf("/sys/class/kgsl/kgsl-3d0/devfreq/governor", "/sys/class/devfreq/gpufreq/governor")
+    private val GPU_CUR = listOf("/sys/class/kgsl/kgsl-3d0/gpuclk", "/sys/class/kgsl/kgsl-3d0/devfreq/cur_freq")
+    private val GPU_MIN = listOf("/sys/class/kgsl/kgsl-3d0/devfreq/min_freq", "/sys/class/devfreq/gpufreq/min_freq")
+    private val GPU_MAX = listOf("/sys/class/kgsl/kgsl-3d0/devfreq/max_freq", "/sys/class/devfreq/gpufreq/max_freq")
 
-    suspend fun getGpuGovernor(): String { for (p in GPU_GOV_PATHS) { val v = node(p); if (v != null) return v }; return "-" }
-    suspend fun getGpuCurFreq(): String { for (p in GPU_CUR_PATHS) { val v = node(p)?.toLongOrNull(); if (v != null) return fmtFreq(v) }; return "-" }
-    suspend fun getGpuMinFreq(): String { for (p in GPU_MIN_PATHS) { val v = node(p)?.toLongOrNull(); if (v != null) return fmtFreq(v) }; return "-" }
-    suspend fun getGpuMaxFreq(): String { for (p in GPU_MAX_PATHS) { val v = node(p)?.toLongOrNull(); if (v != null) return fmtFreq(v) }; return "-" }
+    suspend fun getGpuGovernor(): String { for (p in GPU_GOV) { val v = node(p); if (v != null) return v }; return "-" }
+    suspend fun getGpuCurFreq(): String { for (p in GPU_CUR) { val v = node(p)?.toLongOrNull(); if (v != null) return fmtFreq(v) }; return "-" }
+    suspend fun getGpuMinFreq(): String { for (p in GPU_MIN) { val v = node(p)?.toLongOrNull(); if (v != null) return fmtFreq(v) }; return "-" }
+    suspend fun getGpuMaxFreq(): String { for (p in GPU_MAX) { val v = node(p)?.toLongOrNull(); if (v != null) return fmtFreq(v) }; return "-" }
 
     suspend fun getAvailableGpuGovernors(): List<String> {
         val paths = listOf("/sys/class/kgsl/kgsl-3d0/devfreq/available_governors", "/sys/class/devfreq/gpufreq/available_governors")
@@ -90,9 +88,9 @@ object RootUtils {
         return listOf("msm-adreno-tz", "performance", "powersave", "simple_ondemand")
     }
 
-    suspend fun setGpuGovernor(gov: String): Boolean { for (p in GPU_GOV_PATHS) { if (write(p, gov)) return true }; return false }
+    suspend fun setGpuGovernor(gov: String): Boolean { for (p in GPU_GOV) { if (write(p, gov)) return true }; return false }
 
-    // ── I/O ───────────────────────────────────────────────────────
+    // ── I/O ──────────────────────────────────────────────────────
     suspend fun getCurrentScheduler(): String {
         for (b in listOf("sda", "mmcblk0")) {
             val raw = node("/sys/block/$b/queue/scheduler") ?: continue
@@ -113,55 +111,47 @@ object RootUtils {
         return ok
     }
 
-    // ── Thermal ───────────────────────────────────────────────────
+    // ── Thermal ──────────────────────────────────────────────────
     suspend fun getCpuTemp(): String {
-        val paths = listOf("/sys/class/thermal/thermal_zone0/temp", "/sys/class/thermal/thermal_zone5/temp", "/sys/class/thermal/thermal_zone10/temp")
-        for (p in paths) { val v = node(p)?.toLongOrNull() ?: continue; return "${if (v > 1000) v/1000 else v}°C" }
+        for (p in listOf("/sys/class/thermal/thermal_zone0/temp", "/sys/class/thermal/thermal_zone5/temp")) {
+            val v = node(p)?.toLongOrNull() ?: continue
+            return "${if (v > 1000) v / 1000 else v}°C"
+        }
         return "-"
     }
 
     suspend fun getBatteryTemp(): String {
         val v = node("/sys/class/power_supply/battery/temp")?.toLongOrNull() ?: return "-"
-        return "${v/10}°C"
+        return "${v / 10}°C"
     }
 
-    suspend fun getThermalProfile(): Int = node("/sys/devices/virtual/thermal/thermal_message/sconfig")?.toIntOrNull() ?: 0
-    suspend fun setThermalProfile(profile: Int): Boolean = write("/sys/devices/virtual/thermal/thermal_message/sconfig", profile.toString())
+    suspend fun setThermalProfile(profile: Int): Boolean =
+        write("/sys/devices/virtual/thermal/thermal_message/sconfig", profile.toString())
 
     // ── Device Info ───────────────────────────────────────────────
-    fun getDeviceInfo(): com.riodev.kernelperf.data.model.DeviceInfo {
-        val model = "${Build.MANUFACTURER} ${Build.MODEL}"
-        val chipset = Build.HARDWARE.ifBlank { "Unknown" }
-        return com.riodev.kernelperf.data.model.DeviceInfo(
-            model = model,
-            chipset = chipset,
+    fun getDeviceInfo(): DeviceInfo {
+        val totalRam = try {
+            val lines = java.io.File("/proc/meminfo").readLines()
+            val kb = lines.firstOrNull { it.startsWith("MemTotal") }?.replace(Regex("[^0-9]"), "")?.toLongOrNull() ?: 0L
+            if (kb / 1024 / 1024 > 0) "${kb / 1024 / 1024} GB" else "${kb / 1024} MB"
+        } catch (e: Exception) { "-" }
+        return DeviceInfo(
+            model = "${Build.MANUFACTURER} ${Build.MODEL}",
+            chipset = Build.HARDWARE.ifBlank { "Unknown" },
             kernel = System.getProperty("os.version") ?: "-",
-            totalRam = getTotalRam(),
+            totalRam = totalRam,
             androidVersion = "Android ${Build.VERSION.RELEASE}"
         )
     }
 
-    private fun getTotalRam(): String {
-        return try {
-            val mi = android.app.ActivityManager.MemoryInfo()
-            val am = android.app.ActivityManager::class.java
-            // fallback ke /proc/meminfo
-            val lines = java.io.File("/proc/meminfo").readLines()
-            val total = lines.firstOrNull { it.startsWith("MemTotal") }
-                ?.replace(Regex("[^0-9]"), "")?.toLongOrNull() ?: return "-"
-            val gb = total / 1024 / 1024
-            if (gb > 0) "${gb} GB" else "${total/1024} MB"
-        } catch (e: Exception) { "-" }
-    }
-
-    // ── Apply full profile ────────────────────────────────────────
-    suspend fun applyProfile(profile: com.riodev.kernelperf.data.model.AppProfile) {
+    // ── Apply profile ─────────────────────────────────────────────
+    suspend fun applyProfile(profile: AppProfile) {
         val gov = when (profile.powerMode) {
-            com.riodev.kernelperf.data.model.PowerMode.POWERSAVE -> "powersave"
-            com.riodev.kernelperf.data.model.PowerMode.PERFORMANCE -> "performance"
-            com.riodev.kernelperf.data.model.PowerMode.GAMING -> "performance"
-            com.riodev.kernelperf.data.model.PowerMode.BALANCED -> "schedutil"
-            com.riodev.kernelperf.data.model.PowerMode.CUSTOM -> profile.cpuGovernor
+            PowerMode.POWERSAVE -> "powersave"
+            PowerMode.PERFORMANCE -> "performance"
+            PowerMode.GAMING -> "performance"
+            PowerMode.BALANCED -> "schedutil"
+            PowerMode.CUSTOM -> profile.cpuGovernor
         }
         setGovernor(gov)
         if (profile.cpuMinFreq > 0) setMinFreq(profile.cpuMinFreq)
@@ -176,6 +166,7 @@ object RootUtils {
         }
     }
 
-    fun fmtFreq(khz: Long): String = if (khz >= 1_000_000) String.format("%.1f GHz", khz/1_000_000.0) else String.format("%d MHz", khz/1000)
+    // ── Format ────────────────────────────────────────────────────
+    fun fmtFreq(khz: Long): String = if (khz >= 1_000_000) String.format("%.1f GHz", khz / 1_000_000.0) else String.format("%d MHz", khz / 1000)
     fun fmtFreqInt(khz: Int): String = fmtFreq(khz.toLong())
 }
