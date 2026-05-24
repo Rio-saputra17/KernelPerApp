@@ -25,7 +25,7 @@ import com.riodev.kernelperf.ui.theme.*
 fun HomeScreen(viewModel: MainViewModel) {
     val kernelStatus by viewModel.kernelStatus.collectAsState()
     val isRooted by viewModel.isRooted.collectAsState()
-    val profiles by viewModel.profiles.collectAsState()
+    val profiles by viewModel.appProfiles.collectAsState()
     val activeApp by viewModel.activeProfileApp.collectAsState()
     val deviceInfo by viewModel.deviceInfo.collectAsState()
 

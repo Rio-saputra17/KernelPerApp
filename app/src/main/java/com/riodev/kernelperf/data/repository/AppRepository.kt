@@ -9,6 +9,7 @@ import com.riodev.kernelperf.data.model.InstalledApp
 import com.riodev.kernelperf.root.RootUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
 class AppRepository(private val context: Context) {
@@ -28,7 +29,7 @@ class AppRepository(private val context: Context) {
 
     suspend fun getInstalledApps(): List<InstalledApp> = withContext(Dispatchers.IO) {
         val pm = context.packageManager
-        val profiles = dao.getAllProfilesOnce().associateBy { it.packageName }
+        val profiles = dao.getAllProfiles().first().associateBy { it.packageName }
         pm.getInstalledApplications(PackageManager.GET_META_DATA)
             .filter { it.flags and ApplicationInfo.FLAG_SYSTEM == 0 }
             .map { info ->
