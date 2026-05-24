@@ -40,8 +40,8 @@ fun DefaultProfileScreen(viewModel: MainViewModel) {
     val gpuGovernors = remember { RootUtils.readFile("/sys/class/kgsl/kgsl-3d0/devfreq/available_governors").split(" ").filter { it.isNotBlank() } }
     val schedulers = remember { RootUtils.readFile("/sys/block/sda/queue/scheduler").replace(Regex("[\\[\\]]"), "").split(" ").filter { it.isNotBlank() } }
     val littleFrequencies = remember { RootUtils.readFile("/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_frequencies").split(" ").filter { it.isNotBlank() }.mapNotNull { it.trim().toIntOrNull() } }
-    val bigFrequencies = remember { RootUtils.readFile("/sys/devices/system/cpu/cpu4/cpufreq/scaling_available_frequencies").split(" ").filter { it.isNotBlank() }.mapNotNull { it.trim().toIntOrNull() } }
-
+    val littleFrequencies = remember { RootUtils.readFile("/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_frequencies").split(" ").filter { s -> s.isNotBlank() }.mapNotNull { s -> s.trim().toIntOrNull() } }
+    val bigFrequencies = remember { RootUtils.readFile("/sys/devices/system/cpu/cpu4/cpufreq/scaling_available_frequencies").split(" ").filter { s -> s.isNotBlank() }.mapNotNull { s -> s.trim().toIntOrNull() } }
     if (showDone) {
         LaunchedEffect(showDone) {
             kotlinx.coroutines.delay(2000)
