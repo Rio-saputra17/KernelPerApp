@@ -431,6 +431,11 @@ fun DropdownSetting(
 @Composable
 fun FrequencyDropdown(
     label: String,
+    value: Int,
+    frequencies: List<Int>,
+    onSelect: (Int) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
     val displayValue = if (value == 0) "Default" else {
         val k = value.toLong()
         if (k >= 1_000_000) String.format("%.1f GHz", k / 1_000_000.0)
