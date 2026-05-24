@@ -457,8 +457,39 @@ fun FrequencyDropdown(
             ) {
                 Text(displayValue, fontSize = 12.sp, color = Cyan400)
                 Icon(Icons.Default.ArrowDropDown, null, tint = Cyan400, modifier = Modifier.size(16.dp))
-            }
 
+@Composable
+fun FrequencyDropdown(
+    label: String,
+    value: Int,
+    frequencies: List<Int>,
+    onSelect: (Int) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val displayValue = if (value == 0) "Default" else {
+        val k = value.toLong()
+        if (k >= 1_000_000) String.format("%.1f GHz", k / 1_000_000.0)
+        else String.format("%d MHz", k / 1000)
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, fontSize = 13.sp, color = TextPrimary)
+        Box {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(DarkCardElevated)
+                    .clickable { expanded = true }
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(displayValue, fontSize = 12.sp, color = Cyan400)
+                Icon(Icons.Default.ArrowDropDown, null, tint = Cyan400, modifier = Modifier.size(16.dp))
+            }
             DropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
@@ -469,34 +500,16 @@ fun FrequencyDropdown(
                     onClick = { onSelect(0); expanded = false }
                 )
                 frequencies.reversed().forEach { freq ->
+                    val freqLabel = freq.toLong().let { k ->
+                        if (k >= 1_000_000) String.format("%.1f GHz", k / 1_000_000.0)
+                        else String.format("%d MHz", k / 1000)
+                    }
                     DropdownMenuItem(
-                        text = { Text(if (freq), fontSize = 13.sp, color = if (freq == value) Cyan400 else TextPrimary == 0) "Default" else { val k = freq), fontSize = 13.sp, color = if (freq == value) Cyan400 else TextPrimary.toLong(); if (k >= 1_000_000) String.format("%.1f GHz", k/1_000_000.0) else String.format("%d MHz", k/1000) } },
+                        text = { Text(freqLabel, fontSize = 13.sp, color = if (freq == value) Cyan400 else TextPrimary) },
                         onClick = { onSelect(freq); expanded = false }
                     )
                 }
             }
         }
     }
-}
-
-@Composable
-fun SectionTitle(text: String) {
-    Text(
-        text,
-        fontSize = 13.sp,
-        fontWeight = FontWeight.SemiBold,
-        color = TextSecondary
-    )
-}
-
-@Composable
-fun SectionCard(content: @Composable ColumnScope.() -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(DarkCard)
-            .padding(16.dp),
-        content = content
-    )
 }
