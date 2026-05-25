@@ -115,7 +115,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     )
                     if (new != lastStatus) { lastStatus = new; _kernelStatus.value = new }
                 } catch (e: Exception) { }
-                delay(1500)
+                delay(500)
             }
         }
     }
