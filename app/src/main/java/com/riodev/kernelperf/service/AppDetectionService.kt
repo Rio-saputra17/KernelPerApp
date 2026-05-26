@@ -1,6 +1,9 @@
 package com.riodev.kernelperf.service
 
 import android.app.Service
+import android.app.usage.UsageEvents
+import android.app.usage.UsageStatsManager
+import android.content.Context
 import android.content.Intent
 import android.os.IBinder
 import com.riodev.kernelperf.data.repository.AppRepository
@@ -11,6 +14,7 @@ class AppDetectionService : Service() {
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private lateinit var repo: AppRepository
+    private lateinit var usageStats: UsageStatsManager
     private var lastPkg = ""
     private var isGameActive = false
     private var restoreJob: Job? = null
@@ -18,45 +22,130 @@ class AppDetectionService : Service() {
     companion object {
         var isRunning = false
         var currentForegroundApp = ""
-
-        // Idle profile (dari menu Profil Default)
         var idleGovernor = "schedutil"
         var idleMinFreq = ""
         var idleMaxFreq = ""
         var idleGpuGovernor = ""
         var idleScheduler = ""
 
-        fun updateIdleProfile(gov: String, minFreq: Int, maxFreq: Int, gpuGov: String, io: String) {
+        fun updateDefaultProfile(gov: String, minFreq: Int, maxFreq: Int, gpuGov: String, io: String) {
             if (gov.isNotBlank()) idleGovernor = gov
             idleMinFreq = if (minFreq > 0) minFreq.toString() else ""
             idleMaxFreq = if (maxFreq > 0) maxFreq.toString() else ""
             idleGpuGovernor = if (gpuGov != "default") gpuGov else ""
             idleScheduler = if (io != "default") io else ""
         }
-
-        // Alias untuk kompatibilitas dengan ViewModel lama
-        fun updateDefaultProfile(gov: String, minFreq: Int, maxFreq: Int, gpuGov: String, io: String) {
-            updateIdleProfile(gov, minFreq, maxFreq, gpuGov, io)
-        }
     }
 
     override fun onCreate() {
         super.onCreate()
         repo = AppRepository(applicationContext)
+        usageStats = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
         isRunning = true
         scope.launch {
-            // Terapkan idle saat service pertama start
+            delay(2000)
             applyIdle()
             monitor()
         }
     }
 
-    // ── PERINTAH 1: Apply Idle ───────────────────────────────────
-    // Dijalankan saat: start, tidak ada game aktif, atau 15 detik setelah game ditutup
+    // ── Monitor via UsageEvents ───────────────────────────────────
+    // Baca event ACTIVITY_RESUMED dari sistem — event-driven, bukan polling dumpsys
+    private suspend fun monitor() {
+        while (scope.isActive) {
+            try {
+                val pkg = getForegroundViaUsageStats()
+                if (pkg.isNotBlank() && pkg != lastPkg) {
+                    lastPkg = pkg
+                    currentForegroundApp = pkg
+
+                    val hasProfile = try {
+                        repo.getProfile(pkg)?.isEnabled == true
+                    } catch (e: Exception) { false }
+
+                    when {
+                        hasProfile -> {
+                            // Game dibuka → cancel restore timer, apply game
+                            restoreJob?.cancel()
+                            restoreJob = null
+                            isGameActive = true
+                            try { repo.applyProfile(pkg) } catch (e: Exception) { }
+                        }
+                        isGameActive -> {
+                            // Keluar dari game → tunggu 15 detik lalu restore idle
+                            isGameActive = false
+                            restoreJob?.cancel()
+                            restoreJob = scope.launch {
+                                delay(15_000)
+                                applyIdle()
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) { }
+
+            // Polling UsageStats tiap 2 detik — jauh lebih ringan dari dumpsys
+            // UsageStats tidak spawn proses baru, hanya baca dari cache sistem
+            delay(2000)
+        }
+    }
+
+    // ── Baca foreground app via UsageStatsManager ─────────────────
+    // Ini cara Android resmi — tidak butuh root, tidak spawn shell
+    private fun getForegroundViaUsageStats(): String {
+        try {
+            val now = System.currentTimeMillis()
+            // Ambil events 3 detik terakhir saja
+            val events = usageStats.queryEvents(now - 3000, now)
+            val event = UsageEvents.Event()
+            var lastResumed = ""
+            var lastTime = 0L
+
+            while (events.hasNextEvent()) {
+                events.getNextEvent(event)
+                // ACTIVITY_RESUMED = app masuk foreground
+                if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED) {
+                    if (event.timeStamp > lastTime) {
+                        lastTime = event.timeStamp
+                        lastResumed = event.packageName ?: ""
+                    }
+                }
+            }
+
+            if (lastResumed.isValidPkg()) return lastResumed
+        } catch (e: Exception) { }
+
+        // Fallback: pakai UsageStats biasa kalau queryEvents tidak ada event baru
+        try {
+            val now = System.currentTimeMillis()
+            val stats = usageStats.queryUsageStats(
+                UsageStatsManager.INTERVAL_DAILY,
+                now - 10_000,
+                now
+            )
+            val recent = stats?.maxByOrNull { it.lastTimeUsed }
+            val pkg = recent?.packageName ?: ""
+            if (pkg.isValidPkg()) return pkg
+        } catch (e: Exception) { }
+
+        return ""
+    }
+
+    private fun String.isValidPkg(): Boolean {
+        if (length < 5 || !contains(".")) return false
+        return !startsWith("com.android") && !startsWith("android") &&
+               !startsWith("com.miui") && !startsWith("com.xiaomi") &&
+               !startsWith("com.mi.") && this != "com.termux" &&
+               this != "com.riodev.kernelperf"
+    }
+
+    // ── Apply Idle profile ────────────────────────────────────────
     private fun applyIdle() {
         try {
             w("/sys/devices/system/cpu/cpufreq/policy0/scaling_governor", idleGovernor)
+            Thread.sleep(30)
             w("/sys/devices/system/cpu/cpufreq/policy4/scaling_governor", idleGovernor)
+            Thread.sleep(30)
             if (idleMinFreq.isNotBlank()) {
                 w("/sys/devices/system/cpu/cpufreq/policy0/scaling_min_freq", idleMinFreq)
                 w("/sys/devices/system/cpu/cpufreq/policy4/scaling_min_freq", idleMinFreq)
@@ -68,87 +157,13 @@ class AppDetectionService : Service() {
             if (idleGpuGovernor.isNotBlank())
                 w("/sys/class/kgsl/kgsl-3d0/devfreq/governor", idleGpuGovernor)
             if (idleScheduler.isNotBlank())
-                for (b in listOf("sda", "sdb", "mmcblk0"))
+                for (b in listOf("sda", "mmcblk0"))
                     w("/sys/block/$b/queue/scheduler", idleScheduler)
         } catch (e: Exception) { }
     }
 
-    // ── PERINTAH 2: Apply Game Profile ──────────────────────────
-    // Dijalankan saat: game terdeteksi di foreground
-    private suspend fun applyGame(pkg: String) {
-        try { repo.applyProfile(pkg) } catch (e: Exception) { }
-    }
-
-    // ── Monitor loop ─────────────────────────────────────────────
-    private suspend fun monitor() {
-        while (scope.isActive) {
-            try {
-                val pkg = getForeground()
-
-                if (pkg != lastPkg) {
-                    lastPkg = pkg
-                    currentForegroundApp = pkg
-
-                    val hasProfile = if (pkg.isNotBlank()) {
-                        try { repo.getProfile(pkg)?.isEnabled == true } catch (e: Exception) { false }
-                    } else false
-
-                    when {
-                        hasProfile -> {
-                            // Game terdeteksi → batalkan restore timer, apply game
-                            restoreJob?.cancel()
-                            restoreJob = null
-                            isGameActive = true
-                            applyGame(pkg)
-                        }
-                        isGameActive -> {
-                            // Game baru saja ditutup → mulai countdown 15 detik
-                            isGameActive = false
-                            restoreJob?.cancel()
-                            restoreJob = scope.launch {
-                                delay(15_000) // 15 detik
-                                applyIdle()
-                            }
-                        }
-                        // App biasa, tidak ada game sebelumnya → tidak perlu apa-apa
-                    }
-                }
-            } catch (e: Exception) { }
-            delay(1500)
-        }
-    }
-
-    // ── Deteksi foreground app ────────────────────────────────────
-    private fun getForeground(): String {
-        val cmds = listOf(
-            "dumpsys activity 2>/dev/null | grep -m1 'mCurrentFocus'",
-            "dumpsys activity activities 2>/dev/null | grep -m1 'mResumedActivity'"
-        )
-        for (cmd in cmds) {
-            val r = Shell.cmd(cmd).exec()
-            if (r.isSuccess && r.out.isNotEmpty()) {
-                val p = extractPkg(r.out.first())
-                if (p.isNotBlank()) return p
-            }
-        }
-        return ""
-    }
-
-    private fun extractPkg(line: String): String {
-        val rx = Regex("""([a-zA-Z][a-zA-Z0-9_]*(?:\.[a-zA-Z][a-zA-Z0-9_]*){1,10})[/}]""")
-        for (m in rx.findAll(line)) {
-            val p = m.groupValues[1]
-            if (p.startsWith("com.android") || p.startsWith("android") ||
-                p.startsWith("com.miui") || p.startsWith("com.xiaomi") ||
-                p.startsWith("com.mi.") || p == "com.termux" ||
-                p == "com.riodev.kernelperf") continue
-            if (p.contains(".") && p.length > 5) return p
-        }
-        return ""
-    }
-
     private fun w(path: String, value: String) {
-        Shell.cmd("echo '$value' > $path 2>/dev/null").exec()
+        try { Shell.cmd("echo '$value' > $path 2>/dev/null").exec() } catch (e: Exception) { }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
