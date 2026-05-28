@@ -27,78 +27,78 @@ import java.net.URLDecoder
 import java.net.URLEncoder
 
 class MainActivity : ComponentActivity() {
-    private val viewModel: MainViewModel by viewModels()
+    private val vm: MainViewModel by viewModels()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { KernelPerfTheme { KernelPerfApp(viewModel) } }
+        setContent { Theme { App(vm) } }
     }
 }
 
 data class NavItem(val route: String, val icon: ImageVector, val label: String)
 
 @Composable
-fun KernelPerfApp(viewModel: MainViewModel) {
-    val navController = rememberNavController()
-    val currentEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = currentEntry?.destination?.route
-    val bottomRoutes = listOf("home", "profile_default", "apps")
+fun App(vm: MainViewModel) {
+    val nav = rememberNavController()
+    val entry by nav.currentBackStackEntryAsState()
+    val cur = entry?.destination?.route
+    val bottomRoutes = listOf("home", "profile", "games")
 
     Scaffold(
-        containerColor = DarkBg,
+        containerColor = BgDark,
         bottomBar = {
-            if (currentRoute in bottomRoutes) {
+            if (cur in bottomRoutes) {
                 val items = listOf(
                     NavItem("home", Icons.Default.Dashboard, "Dashboard"),
-                    NavItem("profile_default", Icons.Default.Tune, "Profil"),
-                    NavItem("apps", Icons.Default.Apps, "Aplikasi")
+                    NavItem("profile", Icons.Default.Tune, "Profil"),
+                    NavItem("games", Icons.Default.Apps, "Game")
                 )
-                NavigationBar(containerColor = DarkSurface, tonalElevation = 0.dp) {
+                NavigationBar(containerColor = Card, tonalElevation = 0.dp) {
                     items.forEach { item ->
-                        val selected = currentRoute == item.route
+                        val sel = cur == item.route
                         NavigationBarItem(
-                            selected = selected,
+                            selected = sel,
                             onClick = {
-                                navController.navigate(item.route) {
+                                nav.navigate(item.route) {
                                     popUpTo("home") { saveState = true }
                                     launchSingleTop = true
                                     restoreState = true
                                 }
                             },
-                            icon = { Icon(item.icon, contentDescription = item.label) },
+                            icon = { Icon(item.icon, item.label) },
                             label = { Text(item.label) },
                             colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Cyan400, selectedTextColor = Cyan400,
-                                unselectedIconColor = TextSecondary, unselectedTextColor = TextSecondary,
-                                indicatorColor = Cyan400.copy(alpha = 0.15f)
+                                selectedIconColor = Cyan, selectedTextColor = Cyan,
+                                unselectedIconColor = TextSec, unselectedTextColor = TextSec,
+                                indicatorColor = Cyan.copy(alpha = 0.15f)
                             )
                         )
                     }
                 }
             }
         }
-    ) { padding ->
+    ) { pad ->
         NavHost(
-            navController = navController,
+            navController = nav,
             startDestination = "home",
-            modifier = Modifier.padding(padding),
-            enterTransition = { fadeIn(tween(160)) },
-            exitTransition = { fadeOut(tween(120)) },
-            popEnterTransition = { fadeIn(tween(160)) },
-            popExitTransition = { fadeOut(tween(120)) }
+            modifier = Modifier.padding(pad),
+            enterTransition = { fadeIn(tween(150)) },
+            exitTransition = { fadeOut(tween(100)) },
+            popEnterTransition = { fadeIn(tween(150)) },
+            popExitTransition = { fadeOut(tween(100)) }
         ) {
-            composable("home") { HomeScreen(viewModel) }
-            composable("profile_default") { DefaultProfileScreen(viewModel) }
-            composable("apps") {
-                AppListScreen(viewModel = viewModel, onAppSelected = { pkg ->
-                    navController.navigate("app_profile/${URLEncoder.encode(pkg, "UTF-8")}")
-                })
+            composable("home") { HomeScreen(vm) }
+            composable("profile") { ProfileScreen(vm) }
+            composable("games") {
+                AppListScreen(vm) { pkg ->
+                    nav.navigate("game/${URLEncoder.encode(pkg, "UTF-8")}")
+                }
             }
             composable(
-                route = "app_profile/{packageName}",
-                arguments = listOf(navArgument("packageName") { type = NavType.StringType })
+                "game/{pkg}",
+                arguments = listOf(navArgument("pkg") { type = NavType.StringType })
             ) { back ->
-                val pkg = URLDecoder.decode(back.arguments?.getString("packageName") ?: "", "UTF-8")
-                ProfileEditorScreen(packageName = pkg, viewModel = viewModel, onBack = { navController.popBackStack() })
+                val pkg = URLDecoder.decode(back.arguments?.getString("pkg") ?: "", "UTF-8")
+                GameProfileScreen(pkg = pkg, vm = vm, onBack = { nav.popBackStack() })
             }
         }
     }

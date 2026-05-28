@@ -4,14 +4,12 @@ import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import com.riodev.kernelperf.data.model.*
-import com.riodev.kernelperf.root.RootUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 
 class AppRepository(private val context: Context) {
-    private val db = AppDatabase.getDatabase(context)
-    private val dao = db.appProfileDao()
+    private val dao = AppDatabase.get(context).dao()
 
     fun getAllProfiles(): Flow<List<AppProfile>> = dao.getAllProfiles()
     suspend fun getProfile(pkg: String): AppProfile? = dao.getProfile(pkg)
@@ -27,16 +25,4 @@ class AppRepository(private val context: Context) {
             .map { InstalledApp(it.packageName, pm.getApplicationLabel(it).toString(), it.packageName in enabled) }
             .sortedWith(compareByDescending<InstalledApp> { it.hasProfile }.thenBy { it.appName })
     }
-
-    suspend fun applyProfile(pkg: String) {
-        val p = dao.getProfile(pkg) ?: return
-        if (p.isEnabled) RootUtils.applyProfile(p)
-    }
-
-    suspend fun getAvailableGovernors() = RootUtils.getAvailableGovernors("policy0")
-    suspend fun getAvailableGovernorsBig() = RootUtils.getAvailableGovernors("policy4").ifEmpty { getAvailableGovernors() }
-    suspend fun getAvailableFrequencies() = RootUtils.getAvailableFrequencies("policy0")
-    suspend fun getAvailableFrequenciesBig() = RootUtils.getAvailableFrequencies("policy4").ifEmpty { getAvailableFrequencies() }
-    suspend fun getAvailableSchedulers() = RootUtils.getAvailableSchedulers()
-    suspend fun getAvailableGpuGovernors() = RootUtils.getAvailableGpuGovernors()
 }

@@ -2,7 +2,5 @@
 -dontwarn com.topjohnwu.superuser.**
 -keep class * extends androidx.room.RoomDatabase
 -keep @androidx.room.Entity class *
--keepclassmembers class * { @androidx.room.* <fields>; }
 -keep class com.riodev.kernelperf.data.model.** { *; }
 -keep class com.riodev.kernelperf.service.** { *; }
--dontwarn kotlin.**

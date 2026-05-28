@@ -2,7 +2,7 @@ package com.riodev.kernelperf
 
 import android.app.Application
 import android.content.Intent
-import com.riodev.kernelperf.root.RootUtils
+import com.riodev.kernelperf.root.Kernel
 import com.riodev.kernelperf.service.AppDetectionService
 import com.topjohnwu.superuser.Shell
 

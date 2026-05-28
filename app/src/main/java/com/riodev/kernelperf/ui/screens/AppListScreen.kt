@@ -24,53 +24,54 @@ import com.riodev.kernelperf.ui.MainViewModel
 import com.riodev.kernelperf.ui.theme.*
 
 @Composable
-fun AppListScreen(viewModel: MainViewModel, onAppSelected: (String) -> Unit) {
-    val apps by viewModel.filteredApps.collectAsState()
-    val isLoading by viewModel.isLoadingApps.collectAsState()
-    val searchQuery by viewModel.searchQuery.collectAsState()
+fun AppListScreen(vm: MainViewModel, onApp: (String) -> Unit) {
+    val apps by vm.filteredApps.collectAsState()
+    val loading by vm.loadingApps.collectAsState()
+    val search by vm.search.collectAsState()
 
-    Column(modifier = Modifier.fillMaxSize().background(DarkBg)) {
-        Column(modifier = Modifier.fillMaxWidth().background(DarkSurface).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Per-App Profiles", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+    Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
+        Column(modifier = Modifier.fillMaxWidth().background(Card)
+            .border(BorderStroke(1.dp, CardBorder)).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Game Profiles", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPri)
             OutlinedTextField(
-                value = searchQuery, onValueChange = { viewModel.setSearchQuery(it) },
+                value = search, onValueChange = { vm.setSearch(it) },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Cari aplikasi...", color = TextSecondary) },
-                leadingIcon = { Icon(Icons.Default.Search, null, tint = TextSecondary, modifier = Modifier.size(18.dp)) },
+                placeholder = { Text("Cari aplikasi...", color = TextSec, fontSize = 13.sp) },
+                leadingIcon = { Icon(Icons.Default.Search, null, tint = TextSec, modifier = Modifier.size(18.dp)) },
                 trailingIcon = {
-                    if (searchQuery.isNotBlank()) IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                        Icon(Icons.Default.Clear, null, tint = TextSecondary, modifier = Modifier.size(16.dp))
+                    if (search.isNotBlank()) IconButton(onClick = { vm.setSearch("") }) {
+                        Icon(Icons.Default.Clear, null, tint = TextSec, modifier = Modifier.size(16.dp))
                     }
                 },
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Cyan400, unfocusedBorderColor = DarkCardElevated,
-                    focusedContainerColor = DarkCard, unfocusedContainerColor = DarkCard,
-                    focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary, cursorColor = Cyan400
+                    focusedBorderColor = Cyan, unfocusedBorderColor = CardBorder,
+                    focusedContainerColor = BgDark, unfocusedContainerColor = BgDark,
+                    focusedTextColor = TextPri, unfocusedTextColor = TextPri, cursorColor = Cyan
                 ),
-                shape = RoundedCornerShape(10.dp), singleLine = true
+                shape = RoundedCornerShape(8.dp), singleLine = true
             )
         }
 
-        if (isLoading) {
+        if (loading) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator(color = Cyan400)
-                    Spacer(Modifier.height(10.dp))
-                    Text("Memuat aplikasi...", color = TextSecondary, fontSize = 12.sp)
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CircularProgressIndicator(color = Cyan, strokeWidth = 2.dp)
+                    Text("Memuat...", color = TextSec, fontSize = 12.sp)
                 }
             }
         } else {
-            val withProfile = apps.filter { it.hasProfile }
-            val withoutProfile = apps.filter { !it.hasProfile }
-            LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (withProfile.isNotEmpty()) {
-                    item { Text("Memiliki Profil (${withProfile.size})", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = GreenAccent) }
-                    items(withProfile, key = { it.packageName }) { AppItem(it) { onAppSelected(it.packageName) } }
+            val withP = apps.filter { it.hasProfile }
+            val withoutP = apps.filter { !it.hasProfile }
+            LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (withP.isNotEmpty()) {
+                    item { Text("Sudah ada profil (${withP.size})", fontSize = 11.sp, color = Green, fontWeight = FontWeight.SemiBold) }
+                    items(withP, key = { it.packageName }) { AppItem(it) { onApp(it.packageName) } }
                     item { Spacer(Modifier.height(4.dp)) }
                 }
-                if (withoutProfile.isNotEmpty()) {
-                    item { Text("Semua Aplikasi (${withoutProfile.size})", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary) }
-                    items(withoutProfile, key = { it.packageName }) { AppItem(it) { onAppSelected(it.packageName) } }
+                if (withoutP.isNotEmpty()) {
+                    item { Text("Semua aplikasi (${withoutP.size})", fontSize = 11.sp, color = TextSec, fontWeight = FontWeight.SemiBold) }
+                    items(withoutP, key = { it.packageName }) { AppItem(it) { onApp(it.packageName) } }
                 }
                 item { Spacer(Modifier.height(80.dp)) }
             }
@@ -85,19 +86,21 @@ fun AppItem(app: InstalledApp, onClick: () -> Unit) {
         try { context.packageManager.getApplicationIcon(app.packageName).toBitmap(48, 48).asImageBitmap() }
         catch (e: PackageManager.NameNotFoundException) { null }
     }
-    Row(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(DarkCard).clickable(onClick = onClick).padding(10.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)
+    Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+        .background(Card).border(1.dp, CardBorder, RoundedCornerShape(10.dp))
+        .clickable(onClick = onClick).padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Box(modifier = Modifier.size(42.dp).clip(RoundedCornerShape(8.dp)).background(DarkCardElevated), contentAlignment = Alignment.Center) {
-            if (icon != null) Image(bitmap = icon, contentDescription = null, modifier = Modifier.size(34.dp))
-            else Icon(Icons.Default.Android, null, tint = TextSecondary, modifier = Modifier.size(22.dp))
+        Box(Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)).background(BgDark), contentAlignment = Alignment.Center) {
+            if (icon != null) Image(bitmap = icon, contentDescription = null, modifier = Modifier.size(32.dp))
+            else Icon(Icons.Default.Android, null, tint = TextSec, modifier = Modifier.size(20.dp))
         }
         Column(Modifier.weight(1f)) {
-            Text(app.appName, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
-            Text(app.packageName, fontSize = 10.sp, color = TextSecondary, maxLines = 1)
+            Text(app.appName, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPri)
+            Text(app.packageName, fontSize = 10.sp, color = TextSec, maxLines = 1)
         }
-        if (app.hasProfile) Icon(Icons.Default.Bolt, null, tint = Cyan400, modifier = Modifier.size(16.dp))
-        Icon(Icons.Default.ChevronRight, null, tint = TextSecondary, modifier = Modifier.size(16.dp))
+        if (app.hasProfile) Icon(Icons.Default.SportsEsports, null, tint = Cyan, modifier = Modifier.size(16.dp))
+        Icon(Icons.Default.ChevronRight, null, tint = TextSec, modifier = Modifier.size(16.dp))
     }
 }
