@@ -6,6 +6,7 @@ import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.os.IBinder
+import com.riodev.kernelperf.data.model.AppProfile
 import com.riodev.kernelperf.data.model.IdleProfile
 import com.riodev.kernelperf.data.repository.AppRepository
 import com.riodev.kernelperf.root.Kernel
@@ -19,12 +20,12 @@ class AppDetectionService : Service() {
     private var lastPkg = ""
     private var isGameActive = false
     private var restoreJob: Job? = null
+    private var enforceJob: Job? = null  // Loop apply saat game aktif
 
     companion object {
         var isRunning = false
         var currentForegroundApp = ""
         var idleProfile = IdleProfile()
-
         fun updateIdle(p: IdleProfile) { idleProfile = p }
     }
 
@@ -46,26 +47,61 @@ class AppDetectionService : Service() {
             if (pkg != lastPkg) {
                 lastPkg = pkg
                 currentForegroundApp = pkg
-                val hasProfile = try { repo.getProfile(pkg)?.isEnabled == true } catch (e: Exception) { false }
+                val profile = if (pkg.isNotBlank()) {
+                    try { repo.getProfile(pkg)?.takeIf { it.isEnabled } } catch (e: Exception) { null }
+                } else null
+
                 when {
-                    hasProfile -> {
+                    profile != null -> {
+                        // Game dibuka
                         restoreJob?.cancel(); restoreJob = null
+                        startEnforceLoop(profile)
                         isGameActive = true
-                        val profile = try { repo.getProfile(pkg) } catch (e: Exception) { null }
-                        profile?.let { Kernel.applyGame(it) }
                     }
                     isGameActive -> {
+                        // Game ditutup
+                        stopEnforceLoop()
                         isGameActive = false
                         restoreJob?.cancel()
                         restoreJob = scope.launch {
                             delay(15_000)
                             Kernel.applyIdle(idleProfile)
+                            // Enforce idle juga supaya tidak di-override
+                            startIdleEnforce()
                         }
                     }
                 }
             }
             delay(2000)
         }
+    }
+
+    // Loop re-apply game profile setiap 5 detik
+    // Ini mencegah MIUI thermal daemon override governor
+    private fun startEnforceLoop(profile: AppProfile) {
+        enforceJob?.cancel()
+        enforceJob = scope.launch {
+            while (isActive) {
+                Kernel.applyGame(profile)
+                delay(5000)
+            }
+        }
+    }
+
+    // Loop re-apply idle setiap 10 detik saat tidak ada game
+    private fun startIdleEnforce() {
+        enforceJob?.cancel()
+        enforceJob = scope.launch {
+            while (isActive) {
+                Kernel.applyIdle(idleProfile)
+                delay(10_000)
+            }
+        }
+    }
+
+    private fun stopEnforceLoop() {
+        enforceJob?.cancel()
+        enforceJob = null
     }
 
     private fun getForeground(): String {
@@ -87,12 +123,23 @@ class AppDetectionService : Service() {
         } catch (e: Exception) { "" }
     }
 
-    private fun String.isValid(): Boolean = length > 5 && contains(".") &&
+    private fun String.isValid() = length > 5 && contains(".") &&
         !startsWith("com.android") && !startsWith("android") &&
         !startsWith("com.miui") && !startsWith("com.xiaomi") &&
         !startsWith("com.mi.") && this != "com.termux" && this != "com.riodev.kernelperf"
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Restart idle enforce kalau service restart
+        if (!isGameActive) scope.launch { startIdleEnforce() }
+        return START_STICKY
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
-    override fun onDestroy() { super.onDestroy(); isRunning = false; restoreJob?.cancel(); scope.cancel() }
+    override fun onDestroy() {
+        super.onDestroy()
+        isRunning = false
+        enforceJob?.cancel()
+        restoreJob?.cancel()
+        scope.cancel()
+    }
 }

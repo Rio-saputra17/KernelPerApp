@@ -15,7 +15,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.riodev.kernelperf.data.model.KernelStatus
 import com.riodev.kernelperf.service.AppDetectionService
 import com.riodev.kernelperf.ui.MainViewModel
 import com.riodev.kernelperf.ui.theme.*
@@ -68,8 +67,7 @@ fun HomeScreen(vm: MainViewModel) {
                 Icon(Icons.Default.SportsEsports, null, tint = Cyan, modifier = Modifier.size(16.dp))
                 Column(Modifier.weight(1f)) {
                     Text("App Aktif", fontSize = 10.sp, color = TextSec)
-                    Text(activeApp.substringAfterLast("."), fontSize = 13.sp,
-                        color = TextPri, fontWeight = FontWeight.Medium)
+                    Text(activeApp.substringAfterLast("."), fontSize = 13.sp, color = TextPri, fontWeight = FontWeight.Medium)
                 }
                 if (hasProfile) Text("Game Mode", fontSize = 10.sp, color = Green,
                     modifier = Modifier.clip(RoundedCornerShape(6.dp))
@@ -80,42 +78,113 @@ fun HomeScreen(vm: MainViewModel) {
         // Service status
         val svcColor = if (AppDetectionService.isRunning) Green else Orange
         Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
-            .background(Card).padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
+            .background(Card).border(1.dp, CardBorder, RoundedCornerShape(10.dp)).padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(Modifier.size(7.dp).clip(RoundedCornerShape(4.dp)).background(svcColor))
             Text(if (AppDetectionService.isRunning) "Service Aktif" else "Service Nonaktif — Restart app",
-                fontSize = 12.sp, color = if (AppDetectionService.isRunning) TextPri else TextSec,
-                modifier = Modifier.weight(1f))
+                fontSize = 12.sp, color = if (AppDetectionService.isRunning) TextPri else TextSec, modifier = Modifier.weight(1f))
             Icon(if (AppDetectionService.isRunning) Icons.Default.CheckCircle else Icons.Default.ErrorOutline,
                 null, tint = svcColor, modifier = Modifier.size(16.dp))
         }
 
-        // Live stats
+        // CPU
         Text("• CPU", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Cyan)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatCard(Modifier.weight(1f), "Little Cluster", status.littleGovernor, status.littleCurFreq, Icons.Default.Tune)
-            StatCard(Modifier.weight(1f), "Big Cluster", status.bigGovernor, status.bigCurFreq, Icons.Default.Tune)
+            CpuCard(Modifier.weight(1f), "Little Cluster", status.littleGovernor, status.littleCurFreq)
+            CpuCard(Modifier.weight(1f), "Big Cluster", status.bigGovernor, status.bigCurFreq)
         }
 
+        // GPU
         Text("• GPU", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Cyan)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatCard(Modifier.weight(1f), "GPU Governor", status.gpuGovernor, "", Icons.Default.Memory)
-            StatCard(Modifier.weight(1f), "GPU Freq", status.gpuCurFreq, "", Icons.Default.Speed)
+            GpuCard(Modifier.weight(1f), "Governor", status.gpuGovernor, Icons.Default.Memory)
+            GpuCard(Modifier.weight(1f), "Frequency", status.gpuCurFreq, Icons.Default.Speed)
         }
 
+        // Thermal & Battery
         Text("• Thermal & Battery", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Cyan)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatCard(Modifier.weight(1f), "CPU Temp", status.cpuTemp, "", Icons.Default.Thermostat,
-                color = tempColor(status.cpuTemp))
-            StatCard(Modifier.weight(1f), "Battery",
-                "${status.batteryLevel} · ${status.batteryTemp}",
-                status.batteryStatus, Icons.Default.BatteryChargingFull,
-                color = battColor(status.batteryStatus))
+            TempCard(Modifier.weight(1f), status.cpuTemp)
+            BattCard(Modifier.weight(1f), status.batteryLevel, status.batteryTemp, status.batteryStatus)
         }
 
         Spacer(Modifier.height(80.dp))
+    }
+}
+
+// CPU Card — Governor kecil, Freq BESAR
+@Composable
+fun CpuCard(modifier: Modifier, label: String, governor: String, freq: String) {
+    Column(
+        modifier = modifier.clip(RoundedCornerShape(10.dp)).background(Card)
+            .border(1.dp, CardBorder, RoundedCornerShape(10.dp)).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Icon(Icons.Default.Tune, null, tint = TextSec, modifier = Modifier.size(11.dp))
+            Text(label, fontSize = 10.sp, color = TextSec)
+        }
+        // Governor — ukuran sedang
+        Text(governor, fontSize = 12.sp, color = Cyan, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        // Frekuensi — BESAR dan bold
+        Text(freq, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = TextPri, maxLines = 1)
+    }
+}
+
+// GPU Card
+@Composable
+fun GpuCard(modifier: Modifier, label: String, value: String, icon: ImageVector) {
+    Column(
+        modifier = modifier.clip(RoundedCornerShape(10.dp)).background(Card)
+            .border(1.dp, CardBorder, RoundedCornerShape(10.dp)).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Icon(icon, null, tint = TextSec, modifier = Modifier.size(11.dp))
+            Text(label, fontSize = 10.sp, color = TextSec)
+        }
+        Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Cyan, maxLines = 1)
+    }
+}
+
+// Temperature Card
+@Composable
+fun TempCard(modifier: Modifier, temp: String) {
+    val color = tempColor(temp)
+    Column(
+        modifier = modifier.clip(RoundedCornerShape(10.dp)).background(Card)
+            .border(1.dp, CardBorder, RoundedCornerShape(10.dp)).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Icon(Icons.Default.Thermostat, null, tint = TextSec, modifier = Modifier.size(11.dp))
+            Text("CPU Temp", fontSize = 10.sp, color = TextSec)
+        }
+        Text(temp, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = color)
+    }
+}
+
+// Battery Card
+@Composable
+fun BattCard(modifier: Modifier, level: String, temp: String, status: String) {
+    val color = battColor(status)
+    Column(
+        modifier = modifier.clip(RoundedCornerShape(10.dp)).background(Card)
+            .border(1.dp, CardBorder, RoundedCornerShape(10.dp)).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Icon(Icons.Default.BatteryChargingFull, null, tint = TextSec, modifier = Modifier.size(11.dp))
+            Text("Battery", fontSize = 10.sp, color = TextSec)
+        }
+        // Level BESAR
+        Text(level, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = color)
+        // Temp + status kecil
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(temp, fontSize = 12.sp, color = TextSec)
+            Text("·", fontSize = 12.sp, color = TextSec)
+            Text(status, fontSize = 12.sp, color = TextSec)
+        }
     }
 }
 
@@ -123,8 +192,7 @@ fun HomeScreen(vm: MainViewModel) {
 fun InfoCard(model: String, chipset: String, kernel: String, ram: String) {
     Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
         .background(Card).border(1.dp, CardBorder, RoundedCornerShape(10.dp)).padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
+        verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Icon(Icons.Default.PhoneAndroid, null, tint = Cyan, modifier = Modifier.size(14.dp))
             Text("Device Info", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = TextPri)
@@ -146,28 +214,13 @@ fun IRow(label: String, value: String, small: Boolean = false) {
     }
 }
 
-@Composable
-fun StatCard(modifier: Modifier, label: String, value: String, sub: String, icon: ImageVector, color: Color = Cyan) {
-    Column(modifier = modifier.clip(RoundedCornerShape(10.dp)).background(Card)
-        .border(1.dp, CardBorder, RoundedCornerShape(10.dp)).padding(10.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Icon(icon, null, tint = TextSec, modifier = Modifier.size(11.dp))
-            Text(label, fontSize = 10.sp, color = TextSec)
-        }
-        Text(value, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = color, maxLines = 1)
-        if (sub.isNotBlank()) Text(sub, fontSize = 10.sp, color = TextSec, maxLines = 1)
-    }
-}
-
 private fun tempColor(t: String): Color {
     val v = t.replace("°C", "").toIntOrNull() ?: return Green
     return when { v >= 70 -> Red; v >= 55 -> Orange; else -> Green }
 }
 
-private fun battColor(status: String): Color = when {
-    status.contains("Charging") -> Green
-    status.contains("Full") -> Cyan
+private fun battColor(s: String): Color = when {
+    s.contains("Charging") -> Green
+    s.contains("Full") -> Cyan
     else -> Yellow
 }
