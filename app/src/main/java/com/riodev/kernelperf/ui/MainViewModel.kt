@@ -142,10 +142,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             ds.edit { pr ->
                 pr[K.LG] = p.littleGovernor; pr[K.LN] = p.littleMinFreq; pr[K.LX] = p.littleMaxFreq
-                pr[K.BG] = p.bigGovernor; pr[K.BN] = p.bigMinFreq; pr[K.BX] = p.bigMaxFreq
-                pr[K.GN] = p.gpuMinFreq; pr[K.GX] = p.gpuMaxFreq; pr[K.TH] = p.thermalProfile
+                pr[K.BG] = p.bigGovernor;    pr[K.BN] = p.bigMinFreq;    pr[K.BX] = p.bigMaxFreq
+                pr[K.GN] = p.gpuMinFreq;     pr[K.GX] = p.gpuMaxFreq;   pr[K.TH] = p.thermalProfile
             }
-            AppDetectionService.updateIdle(p)
+            AppDetectionService.onIdleUpdated?.invoke(p)
         }
     }
 
